@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 
 import httpx
@@ -5,11 +7,18 @@ from openai import AsyncOpenAI
 
 from app.config import settings
 
-client = AsyncOpenAI(
-    api_key=settings.deepseek_api_key,
-    base_url=settings.deepseek_base_url,
-    timeout=httpx.Timeout(60.0),
-)
+_client: AsyncOpenAI | None = None
+
+
+def get_client() -> AsyncOpenAI:
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(
+            api_key=settings.deepseek_api_key or "sk-placeholder",
+            base_url=settings.deepseek_base_url,
+            timeout=httpx.Timeout(60.0),
+        )
+    return _client
 
 
 async def chat_completion(
@@ -18,7 +27,7 @@ async def chat_completion(
     temperature: float = 0.7,
     max_tokens: int = 4096,
 ) -> str:
-    response = await client.chat.completions.create(
+    response = await get_client().chat.completions.create(
         model=model or settings.deepseek_model,
         messages=messages,
         temperature=temperature,
@@ -33,7 +42,7 @@ async def chat_completion_stream(
     temperature: float = 0.7,
     max_tokens: int = 4096,
 ) -> AsyncGenerator[str, None]:
-    stream = await client.chat.completions.create(
+    stream = await get_client().chat.completions.create(
         model=model or settings.deepseek_model,
         messages=messages,
         temperature=temperature,

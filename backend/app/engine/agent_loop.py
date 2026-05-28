@@ -16,11 +16,11 @@ def build_messages(agent: dict, task_input: str, context: str = "") -> list[dict
 
 async def run_agent(agent: dict, task_input: str, context: str = "") -> dict:
     messages = build_messages(agent, task_input, context)
-    model_config = agent.get("model_config") or {}
+    llm_config = agent.get("llm_config") or {}
     response = await chat_completion(
         messages=messages,
-        temperature=model_config.get("temperature", 0.7),
-        max_tokens=model_config.get("max_tokens", 4096),
+        temperature=llm_config.get("temperature", 0.7),
+        max_tokens=llm_config.get("max_tokens", 4096),
     )
     return {"agent_name": agent["name"], "agent_role": agent["role"], "content": response}
 
@@ -29,12 +29,12 @@ async def run_agent_stream(
     agent: dict, task_input: str, context: str = ""
 ) -> AsyncGenerator[dict, None]:
     messages = build_messages(agent, task_input, context)
-    model_config = agent.get("model_config") or {}
+    llm_config = agent.get("llm_config") or {}
     full_response = ""
     async for chunk in chat_completion_stream(
         messages=messages,
-        temperature=model_config.get("temperature", 0.7),
-        max_tokens=model_config.get("max_tokens", 4096),
+        temperature=llm_config.get("temperature", 0.7),
+        max_tokens=llm_config.get("max_tokens", 4096),
     ):
         full_response += chunk
         yield {"type": "chunk", "agent_name": agent["name"], "content": chunk}

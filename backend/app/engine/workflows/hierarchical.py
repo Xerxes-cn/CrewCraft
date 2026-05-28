@@ -17,11 +17,12 @@ class HierarchicalState(dict):
 async def leader_node(state: HierarchicalState) -> HierarchicalState:
     agents = state["agents"]
     agent_descriptions = [f"- {a['name']} ({a['role']})" for a in agents]
+    team_list = "\n".join(agent_descriptions)
 
     plan_prompt = f"""You are a team leader. Based on the task, create a plan delegating work to team members.
 
 Available team members:
-{"\n".join(agent_descriptions)}
+{team_list}
 
 Task: {state['task_input']}
 

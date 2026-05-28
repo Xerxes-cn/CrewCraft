@@ -30,7 +30,7 @@ export interface Agent {
   role: string;
   system_prompt: string | null;
   tools: unknown[] | null;
-  model_config: Record<string, unknown> | null;
+  llm_config: Record<string, unknown> | null;
   order: number;
   depends_on: number[] | null;
 }

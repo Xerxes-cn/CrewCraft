@@ -40,7 +40,7 @@ class AgentCreate(BaseModel):
     role: str
     system_prompt: Optional[str] = None
     tools: Optional[list] = None
-    model_config: Optional[dict] = None
+    llm_config: Optional[dict] = None
     order: int = 0
     depends_on: Optional[list] = None
 
@@ -50,7 +50,7 @@ class AgentUpdate(BaseModel):
     role: Optional[str] = None
     system_prompt: Optional[str] = None
     tools: Optional[list] = None
-    model_config: Optional[dict] = None
+    llm_config: Optional[dict] = None
     order: Optional[int] = None
     depends_on: Optional[list] = None
 
@@ -62,7 +62,7 @@ class AgentResponse(BaseModel):
     role: str
     system_prompt: Optional[str]
     tools: Optional[list]
-    model_config: Optional[dict]
+    llm_config: Optional[dict]
     order: int
     depends_on: Optional[list]
 

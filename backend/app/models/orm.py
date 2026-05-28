@@ -36,7 +36,7 @@ class Agent(Base):
     role: Mapped[str] = mapped_column(String(500), nullable=False)
     system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     tools: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
-    model_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=dict)
+    llm_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=dict)
     order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     depends_on: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
 

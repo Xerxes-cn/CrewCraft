@@ -1,4 +1,3 @@
-from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from app.engine.workflows.sequential import build_sequential_graph
@@ -15,7 +14,7 @@ def compile_crew_graph(crew: Crew) -> CompiledStateGraph:
             "role": a.role,
             "system_prompt": a.system_prompt,
             "tools": a.tools or [],
-            "model_config": a.model_config or {},
+            "llm_config": a.llm_config or {},
             "order": a.order,
         }
         for a in crew.agents
