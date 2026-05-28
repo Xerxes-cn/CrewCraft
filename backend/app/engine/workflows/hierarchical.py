@@ -1,7 +1,9 @@
 import json
-from typing import Any
 
 from langgraph.graph import StateGraph, END
+
+from app.engine.agent_loop import run_agent
+from app.llm.deepseek import chat_completion
 
 
 class HierarchicalState(dict):
@@ -13,15 +15,13 @@ class HierarchicalState(dict):
 
 
 async def leader_node(state: HierarchicalState) -> HierarchicalState:
-    from app.llm.deepseek import chat_completion
-
     agents = state["agents"]
     agent_descriptions = [f"- {a['name']} ({a['role']})" for a in agents]
 
     plan_prompt = f"""You are a team leader. Based on the task, create a plan delegating work to team members.
 
 Available team members:
-{chr(10).join(agent_descriptions)}
+{"\n".join(agent_descriptions)}
 
 Task: {state['task_input']}
 
@@ -35,7 +35,15 @@ Respond in JSON format:
 
     try:
         plan_data = json.loads(response)
-        state["plan"] = plan_data.get("plan", [])
+        raw_plan = plan_data.get("plan", [])
+        # Validate agent indices
+        state["plan"] = []
+        for item in raw_plan:
+            idx = item.get("agent_index", 0)
+            if 0 <= idx < len(agents):
+                state["plan"].append(item)
+            else:
+                state["plan"].append({"agent_index": 0, "instruction": item.get("instruction", "")})
     except json.JSONDecodeError:
         state["plan"] = [{"agent_index": 0, "instruction": state["task_input"]}]
 
@@ -44,8 +52,6 @@ Respond in JSON format:
 
 
 async def worker_node(state: HierarchicalState) -> HierarchicalState:
-    from app.engine.agent_loop import run_agent
-
     if not state["plan"]:
         return state
 

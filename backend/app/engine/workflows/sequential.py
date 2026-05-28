@@ -1,6 +1,6 @@
-from typing import Any
-
 from langgraph.graph import StateGraph, END
+
+from app.engine.agent_loop import run_agent
 
 
 class SequentialState(dict):
@@ -12,8 +12,6 @@ class SequentialState(dict):
 
 
 async def run_agent_node(state: SequentialState) -> SequentialState:
-    from app.engine.agent_loop import run_agent
-
     agents = state["agents"]
     idx = state["current_index"]
     if idx >= len(agents):

@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from app.engine.workflows.sequential import build_sequential_graph
 from app.engine.workflows.hierarchical import build_hierarchical_graph
@@ -6,7 +7,7 @@ from app.engine.workflows.roundtable import build_roundtable_graph
 from app.models.orm import Crew
 
 
-def compile_crew_graph(crew: Crew) -> StateGraph:
+def compile_crew_graph(crew: Crew) -> CompiledStateGraph:
     agents_data = [
         {
             "id": a.id,

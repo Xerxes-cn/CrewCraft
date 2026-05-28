@@ -1,6 +1,7 @@
-from typing import Any
-
 from langgraph.graph import StateGraph, END
+
+from app.engine.agent_loop import run_agent
+from app.llm.deepseek import chat_completion
 
 
 class RoundtableState(dict):
@@ -13,9 +14,6 @@ class RoundtableState(dict):
 
 
 async def discuss_node(state: RoundtableState) -> RoundtableState:
-    from app.engine.agent_loop import run_agent
-    from app.llm.deepseek import chat_completion
-
     agents = state["agents"]
     discussion = "\n".join(
         [m["content"] for m in state["messages"] if isinstance(m, dict) and "content" in m]
@@ -33,6 +31,10 @@ async def discuss_node(state: RoundtableState) -> RoundtableState:
     state["current_round"] += 1
 
     if state["current_round"] >= state["max_rounds"]:
+        # Rebuild discussion to include current round's contributions
+        discussion = "\n".join(
+            [m["content"] for m in state["messages"] if isinstance(m, dict) and "content" in m]
+        )
         summary_prompt = f"Based on the discussion, summarize the consensus:\n{discussion}"
         summary = await chat_completion(
             messages=[{"role": "user", "content": summary_prompt}],
