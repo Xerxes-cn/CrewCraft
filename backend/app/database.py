@@ -11,6 +11,9 @@ class Base(DeclarativeBase):
     pass
 
 
+import app.models.orm  # noqa: F401 - register models
+
+
 async def get_db() -> AsyncSession:
     async with async_session() as session:
         try:
