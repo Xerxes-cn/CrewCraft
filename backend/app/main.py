@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.crews import router as crews_router
 from app.api.agents import router as agents_router
+from app.api.tasks import router as tasks_router
 from app.database import init_db
 
 
@@ -27,6 +28,7 @@ app.add_middleware(
 
 app.include_router(crews_router)
 app.include_router(agents_router)
+app.include_router(tasks_router)
 
 
 @app.get("/api/health")
