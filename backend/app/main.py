@@ -3,6 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.crews import router as crews_router
+from app.api.agents import router as agents_router
 from app.database import init_db
 
 
@@ -21,6 +23,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(crews_router)
+app.include_router(agents_router)
 
 
 @app.get("/api/health")
