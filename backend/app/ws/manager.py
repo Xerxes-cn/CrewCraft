@@ -5,6 +5,8 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from app.llm.deepseek import chat_completion_stream
+
 
 class ConnectionManager:
     def __init__(self):
@@ -59,3 +61,54 @@ async def stream_workflow(
     }
     await manager.broadcast(crew_id, final)
     yield final
+
+
+async def stream_agent_round(
+    crew_id: int,
+    agents: list[dict],
+    followup_input: str,
+    history: list[dict],
+) -> list[dict]:
+    """Run an interactive round: all agents respond to user follow-up with conversation context."""
+    results: list[dict] = []
+
+    # Build conversation context from history
+    context_parts: list[str] = []
+    for msg in history:
+        name = msg.get("agent_name", "")
+        role = msg.get("agent_role", "")
+        content = msg.get("content", "")
+        label = f"{name}（{role}）" if role else name
+        context_parts.append(f"[{label}]: {content}")
+    context = "\n".join(context_parts)
+
+    for agent in agents:
+        system_prompt = agent.get("system_prompt") or f"你是{agent['name']}，{agent['role']}。"
+        if agent.get("workspace"):
+            system_prompt += f"\n\n你的独立工作目录为：{agent['workspace']}。你可以在此目录中读写文件，该目录与其他智能体隔离。"
+        messages = [{"role": "system", "content": system_prompt}]
+
+        if context:
+            messages.append({"role": "user", "content": f"历史对话：\n{context}"})
+
+        messages.append({"role": "user", "content": f"用户的后续消息：{followup_input}\n\n请根据你的角色和对话历史，对用户的消息做出回应。"})
+
+        # Stream agent response character by character
+        full_content = ""
+        async for chunk in chat_completion_stream(messages=messages):
+            full_content += chunk
+            await manager.broadcast(crew_id, {
+                "type": "agent_chunk",
+                "agent_name": agent["name"],
+                "agent_role": agent["role"],
+                "content": chunk,
+            })
+
+        result = {"agent_name": agent["name"], "agent_role": agent["role"], "content": full_content}
+        await manager.broadcast(crew_id, {
+            "type": "agent_message",
+            "data": result,
+        })
+        results.append(result)
+
+    return results

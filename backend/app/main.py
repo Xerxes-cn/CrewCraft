@@ -7,11 +7,13 @@ from app.api.crews import router as crews_router
 from app.api.agents import router as agents_router
 from app.api.tasks import router as tasks_router
 from app.database import init_db
+from app.services.workspace import init_all_workspaces
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    init_all_workspaces()
     yield
 
 

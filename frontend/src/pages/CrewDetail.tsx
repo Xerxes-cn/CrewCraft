@@ -28,7 +28,7 @@ export default function CrewDetail() {
 
   useEffect(load, [id]);
 
-  if (!crew) return <p>Loading...</p>;
+  if (!crew) return <p>加载中...</p>;
 
   const handleAddAgent = async (data: { name: string; role: string; system_prompt: string; order: number }) => {
     await api.createAgent(crew.id, data);
@@ -52,7 +52,7 @@ export default function CrewDetail() {
   return (
     <div>
       <button onClick={() => navigate('/')} style={{ ...btnStyle, background: '#95a5a6', marginBottom: 16, marginTop: 0 }}>
-        &larr; Back
+        &larr; 返回
       </button>
 
       <h2>{crew.name}</h2>
@@ -65,16 +65,21 @@ export default function CrewDetail() {
         onChangeMaxRounds={(rounds) => handleUpdateWorkflow(crew.workflow_type, rounds)}
       />
 
-      <h3>Agents ({crew.agents.length})</h3>
+      <h3>智能体（{crew.agents.length}）</h3>
       {crew.agents.map((agent) => (
         <AgentCard key={agent.id} agent={agent} onDelete={handleDeleteAgent} />
       ))}
 
-      <AgentForm onSubmit={handleAddAgent} />
+      <AgentForm
+        onSubmit={handleAddAgent}
+        crewName={crew.name}
+        crewDescription={crew.description}
+        workflowType={crew.workflow_type}
+      />
 
       {crew.agents.length > 0 && (
         <button style={btnStyle} onClick={() => navigate(`/crews/${crew.id}/run`)}>
-          Run Task &rarr;
+          运行任务 &rarr;
         </button>
       )}
     </div>

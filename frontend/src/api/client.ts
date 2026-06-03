@@ -60,6 +60,10 @@ export const api = {
     request<Agent>(`/agents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAgent: (id: number) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
 
+  // Prompt
+  generatePrompt: (data: { role: string; crew_name: string; crew_description: string | null; workflow_type: string }) =>
+    request<{ prompt: string }>('/generate-prompt', { method: 'POST', body: JSON.stringify(data) }),
+
   // Tasks
   runTask: (crewId: number, input: string) =>
     request<Task>(`/crews/${crewId}/run`, { method: 'POST', body: JSON.stringify({ input }) }),

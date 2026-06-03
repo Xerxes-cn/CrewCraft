@@ -3,9 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.database import get_db
-from app.models.orm import Crew
+from app.database import get_db, async_session
+from app.models.orm import Crew, Agent
 from app.schemas.api import CrewCreate, CrewResponse, CrewUpdate
+from app.services.workspace import init_crew_workspace, init_agent_workspace, remove_crew_workspace
 
 router = APIRouter(prefix="/api/crews", tags=["crews"])
 
@@ -15,8 +16,11 @@ async def create_crew(data: CrewCreate, db: AsyncSession = Depends(get_db)):
     crew = Crew(**data.model_dump())
     db.add(crew)
     await db.commit()
-    await db.refresh(crew)
-    return crew
+    init_crew_workspace(crew.id, crew.name)
+    result = await db.execute(
+        select(Crew).options(selectinload(Crew.agents)).where(Crew.id == crew.id)
+    )
+    return result.scalar_one()
 
 
 @router.get("", response_model=list[CrewResponse])
@@ -61,5 +65,6 @@ async def delete_crew(crew_id: int, db: AsyncSession = Depends(get_db)):
     crew = result.scalar_one_or_none()
     if not crew:
         raise HTTPException(status_code=404, detail="Crew not found")
+    remove_crew_workspace(crew.id, crew.name)
     await db.delete(crew)
     await db.commit()

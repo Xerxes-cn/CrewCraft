@@ -33,19 +33,20 @@ Browser (React) → FastAPI (REST + WebSocket) → LangGraph 运行时 → DeepS
 
 - Python 3.11+
 - Node.js 20+
+- [uv](https://docs.astral.sh/uv/)（Python 包管理器）
 - DeepSeek API Key
 
 ### 1. 启动后端
 
 ```bash
 cd backend
-pip install -r requirements.txt
+uv sync
 
 # 设置 API Key
 export DEEPSEEK_API_KEY=your-api-key
 
 # 启动服务
-uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
 ### 2. 启动前端
@@ -62,13 +63,15 @@ npm run dev
 
 ```bash
 cd cli
-pip install typer httpx
+uv run python main.py ls              # 列出所有团队
+uv run python main.py run 1 --task "写一篇关于 AI 的博客"  # 执行任务
+```
 
-# 列出所有团队
-python main.py ls
+### 4. 运行测试
 
-# 执行任务
-python main.py run 1 --task "写一篇关于 AI 的博客"
+```bash
+cd backend
+uv run pytest tests/ -v
 ```
 
 ### Docker 部署
@@ -114,7 +117,8 @@ CrewCraft/
 │   │   │   └── workflows/    # 三种工作流实现
 │   │   ├── llm/              # DeepSeek API 封装
 │   │   └── ws/               # WebSocket 管理
-│   └── requirements.txt
+│   ├── pyproject.toml         # 项目配置与依赖
+│   └── uv.lock                # 依赖锁文件
 ├── frontend/
 │   └── src/
 │       ├── pages/            # 页面组件

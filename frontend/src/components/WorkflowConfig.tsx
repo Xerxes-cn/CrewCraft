@@ -23,18 +23,18 @@ const containerStyle: React.CSSProperties = {
 export default function WorkflowConfig({ workflowType, maxRounds, onChangeType, onChangeMaxRounds }: Props) {
   return (
     <div style={containerStyle}>
-      <h3 style={{ marginTop: 0 }}>Workflow</h3>
+      <h3 style={{ marginTop: 0 }}>工作流</h3>
       <label style={{ marginRight: 12 }}>
-        Type:
+        类型：
         <select value={workflowType} onChange={(e) => onChangeType(e.target.value)} style={{ ...selectStyle, marginLeft: 8 }}>
-          <option value="sequential">Sequential</option>
-          <option value="hierarchical">Hierarchical</option>
-          <option value="roundtable">Roundtable</option>
+          <option value="sequential">顺序执行</option>
+          <option value="hierarchical">层级协作</option>
+          <option value="roundtable">圆桌讨论</option>
         </select>
       </label>
       {workflowType === 'roundtable' && (
         <label>
-          Max rounds:
+          最大轮次：
           <input
             type="number"
             min={1}

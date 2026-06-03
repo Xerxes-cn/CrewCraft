@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, type Crew, type Task } from '../api/client';
+import { api, type Crew } from '../api/client';
 import MessageList from '../components/MessageList';
 
 const inputStyle: React.CSSProperties = {
@@ -24,84 +24,156 @@ const btnStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
+interface Message {
+  agent_name: string;
+  agent_role: string;
+  content: string;
+}
+
+type Phase = 'idle' | 'task' | 'chat';
+
 export default function CrewRun() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [crew, setCrew] = useState<Crew | null>(null);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Array<{ agent_name: string; agent_role: string; content: string }>>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
   const wsRef = useRef<WebSocket | null>(null);
+  const streamingRef = useRef<Message | null>(null);
+  const phaseRef = useRef<Phase>('idle');
+
+  // Keep refs in sync so WebSocket callbacks always see latest values
+  phaseRef.current = phase;
 
   useEffect(() => {
     if (!id) return;
     api.getCrew(Number(id)).then(setCrew).catch(console.error);
   }, [id]);
 
-  useEffect(() => {
-    if (!id || !running) return;
+  const openWebSocket = (msgType: 'task' | 'followup', text: string) => {
+    wsRef.current?.close();
 
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const ws = new WebSocket(`${protocol}://${window.location.host}/api/crews/${id}/stream`);
     wsRef.current = ws;
 
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: msgType, input: text }));
+    };
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
       if (data.type === 'agent_message' && data.data) {
-        setMessages((prev) => [...prev, data.data]);
+        streamingRef.current = null;
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.agent_name === data.data.agent_name && !last.agent_role) {
+            const updated = [...prev];
+            updated[updated.length - 1] = data.data;
+            return updated;
+          }
+          return [...prev, data.data];
+        });
+      } else if (data.type === 'agent_chunk') {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.agent_name === data.agent_name && streamingRef.current?.agent_name === data.agent_name) {
+            const updated = [...prev];
+            updated[updated.length - 1] = { ...last, content: last.content + data.content };
+            streamingRef.current = updated[updated.length - 1];
+            return updated;
+          } else {
+            const newMsg = { agent_name: data.agent_name, agent_role: '', content: data.content };
+            streamingRef.current = newMsg;
+            return [...prev, newMsg];
+          }
+        });
       } else if (data.type === 'workflow_complete') {
         setRunning(false);
+        setPhase('chat');
+        streamingRef.current = null;
+      } else if (data.type === 'followup_complete') {
+        setRunning(false);
+        streamingRef.current = null;
+      } else if (data.type === 'error') {
+        setRunning(false);
+        alert(data.message || '发生错误');
       }
     };
 
-    ws.onerror = () => setRunning(false);
-
-    return () => { ws.close(); };
-  }, [id, running]);
-
-  const handleRun = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !id) return;
-
-    setMessages([]);
-    setRunning(true);
-
-    try {
-      const task: Task = await api.runTask(Number(id), input);
-      if (task.messages) {
-        setMessages(task.messages as Array<{ agent_name: string; agent_role: string; content: string }>);
+    ws.onerror = () => {
+      setRunning(false);
+      if (phaseRef.current === 'task') {
+        setPhase('idle');
       }
-    } catch (err) {
-      console.error(err);
-    }
-    setRunning(false);
+    };
+
+    ws.onclose = () => {
+      setRunning(false);
+    };
   };
 
-  if (!crew) return <p>Loading...</p>;
+  const handleSend = (e: FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || !id || running) return;
+
+    setRunning(true);
+
+    if (phase === 'idle') {
+      setMessages([]);
+      setPhase('task');
+      openWebSocket('task', text);
+      return;
+    }
+
+    setInput('');
+    if (phase === 'chat') {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'followup', input: text }));
+      } else {
+        openWebSocket('followup', text);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      wsRef.current?.close();
+    };
+  }, []);
+
+  if (!crew) return <p>加载中...</p>;
 
   return (
     <div>
-      <button onClick={() => navigate(`/crews/${id}`)} style={{ ...btnStyle, background: '#95a5a6', marginBottom: 16 }}>
-        &larr; Back
+      <button onClick={() => { wsRef.current?.close(); navigate(`/crews/${id}`); }} style={{ ...btnStyle, background: '#95a5a6', marginBottom: 16 }}>
+        &larr; 返回
       </button>
 
-      <h2>Run: {crew.name}</h2>
+      <h2>运行：{crew.name}</h2>
+      {phase === 'chat' && <p style={{ color: '#2ecc71', fontSize: 14, marginBottom: 12 }}>任务已完成，你可以继续与智能体讨论</p>}
 
-      <form onSubmit={handleRun}>
-        <input
-          style={inputStyle}
-          placeholder="Enter your task..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={running}
-        />
-        <button type="submit" style={btnStyle} disabled={running || !input.trim()}>
-          {running ? 'Running...' : 'Run'}
-        </button>
+      <form onSubmit={handleSend}>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <input
+            style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+            placeholder={phase === 'idle' ? '请输入任务...' : '输入后续消息与智能体讨论...'}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={running}
+          />
+          <button type="submit" style={btnStyle} disabled={running || !input.trim()}>
+            {running ? '运行中...' : phase === 'idle' ? '下发任务' : '发送'}
+          </button>
+        </div>
       </form>
 
       <div style={{ marginTop: 24 }}>
-        <h3>Conversation</h3>
+        <h3>对话记录</h3>
         <MessageList messages={messages} running={running} />
       </div>
     </div>

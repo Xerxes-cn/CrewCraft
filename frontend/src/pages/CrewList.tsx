@@ -60,21 +60,21 @@ export default function CrewList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h2>Crews</h2>
+        <h2>团队列表</h2>
         <button style={btnStyle} onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : 'New Crew'}
+          {showForm ? '取消' : '新建团队'}
         </button>
       </div>
 
       {showForm && (
         <form onSubmit={handleCreate} style={{ marginBottom: 24, padding: 16, border: '1px solid #e0e0e0', borderRadius: 8 }}>
-          <input style={inputStyle} placeholder="Crew name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <input style={inputStyle} placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <button type="submit" style={btnStyle}>Create</button>
+          <input style={inputStyle} placeholder="团队名称" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input style={inputStyle} placeholder="描述（可选）" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <button type="submit" style={btnStyle}>创建</button>
         </form>
       )}
 
-      {crews.length === 0 && <p style={{ color: '#888' }}>No crews yet. Create one to get started.</p>}
+      {crews.length === 0 && <p style={{ color: '#888' }}>暂无团队，创建一个开始使用吧。</p>}
 
       {crews.map((crew) => (
         <div key={crew.id} style={cardStyle} onClick={() => navigate(`/crews/${crew.id}`)}>
@@ -87,12 +87,12 @@ export default function CrewList() {
               onClick={(e) => { e.stopPropagation(); handleDelete(crew.id); }}
               style={{ background: '#e74c3c', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 12px', cursor: 'pointer' }}
             >
-              Delete
+              删除
             </button>
           </div>
           {crew.description && <p style={{ color: '#666', fontSize: 14, marginTop: 8 }}>{crew.description}</p>}
           <p style={{ color: '#aaa', fontSize: 12, marginTop: 8 }}>
-            {crew.agents.length} agent{crew.agents.length !== 1 ? 's' : ''}
+            {crew.agents.length} 个智能体
           </p>
         </div>
       ))}

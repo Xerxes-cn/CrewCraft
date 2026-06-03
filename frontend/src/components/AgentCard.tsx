@@ -29,7 +29,7 @@ export default function AgentCard({ agent, onDelete }: Props) {
           <strong>{agent.name}</strong>
           <span style={{ color: '#888', marginLeft: 8 }}>{agent.role}</span>
         </div>
-        <button onClick={() => onDelete(agent.id)} style={btnDanger}>Delete</button>
+        <button onClick={() => onDelete(agent.id)} style={btnDanger}>删除</button>
       </div>
       {agent.system_prompt && (
         <p style={{ color: '#666', fontSize: 14, marginTop: 8 }}>{agent.system_prompt}</p>

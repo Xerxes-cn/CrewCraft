@@ -28,7 +28,7 @@ export default function MessageList({ messages, running }: Props) {
           <p style={{ whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>{msg.content}</p>
         </div>
       ))}
-      {running && <p style={{ color: '#888' }}>Working...</p>}
+      {running && <p style={{ color: '#888' }}>运行中...</p>}
     </div>
   );
 }
