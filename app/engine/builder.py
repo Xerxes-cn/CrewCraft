@@ -1,4 +1,4 @@
-"""Build CrewAI objects from ORM records."""
+"""Build CrewAI objects from agent configuration."""
 from __future__ import annotations
 
 from crewai import Agent, Crew, Process, Task
@@ -9,12 +9,10 @@ from app.engine.tools import get_crewai_tools
 
 def _resolve_tools(crew_tools: list | None, agent_tools: list | None) -> list:
     """Resolve tool names for an agent by merging crew-level and agent-level tools."""
-    # crew_tools None means use agent-level; otherwise use crew-level (override)
     if crew_tools is not None:
         names = crew_tools
     else:
         names = agent_tools or []
-    # Normalize: tools can be strings or {"name": "..."} dicts
     result = []
     for t in names:
         if isinstance(t, str):
@@ -39,23 +37,16 @@ def build_crewai_agent(agent_data: dict, tools: list) -> Agent:
 
 
 def build_crew_and_tasks(
-    crew_orm, agents_orm: list[dict], task_input: str
+    agents_orm: list[dict], task_input: str,
+    workflow_type: str = "sequential", tools: list | None = None,
 ) -> tuple[Crew, list[Task]]:
-    """Build a CrewAI Crew and Tasks from ORM data.
+    """Build a CrewAI Crew and Tasks from agent configs."""
 
-    Returns (crew, tasks) for sequential/hierarchical workflows.
-    For roundtable, returns (None, None) — handled separately.
-    """
-    crew_tools = crew_orm.tools  # crew-level tool names
-
-    # Build agents
     crewai_agents: list[Agent] = []
     for a in agents_orm:
-        tool_names = _resolve_tools(crew_tools, a.get("tools", []))
+        tool_names = _resolve_tools(tools, a.get("tools", []))
         agent_tools = get_crewai_tools(tool_names)
         crewai_agents.append(build_crewai_agent(a, agent_tools))
-
-    workflow_type = crew_orm.workflow_type
 
     if workflow_type == "sequential":
         tasks = _build_sequential_tasks(crewai_agents, task_input)
@@ -64,11 +55,9 @@ def build_crew_and_tasks(
     elif workflow_type == "hierarchical":
         tasks = _build_hierarchical_task(task_input)
         process = Process.hierarchical
-        # CrewAI needs manager_llm or manager_agent for hierarchical process
         manager_llm = build_crewai_llm(agents_orm[0].get("llm_config") if agents_orm else None)
         crew_kwargs = {"manager_llm": manager_llm}
     else:
-        # Roundtable — caller should use run_roundtable() instead
         return None, None
 
     crew = Crew(
@@ -83,17 +72,11 @@ def build_crew_and_tasks(
 
 
 def _build_sequential_tasks(agents: list[Agent], task_input: str) -> list[Task]:
-    """Create one Task per agent for sequential execution.
-
-    Each agent gets the user's input. CrewAI's sequential process pipes
-    previous task output as context to the next task automatically.
-    """
     tasks: list[Task] = []
     for i, agent in enumerate(agents):
         context = None
         if i > 0:
             context = [tasks[-1]]
-
         tasks.append(Task(
             description=task_input,
             expected_output=f"{agent.role} 的执行结果",
@@ -104,11 +87,6 @@ def _build_sequential_tasks(agents: list[Agent], task_input: str) -> list[Task]:
 
 
 def _build_hierarchical_task(task_input: str) -> list[Task]:
-    """Create a single task for hierarchical execution.
-
-    The first agent in the crew acts as the manager; CrewAI's
-    Process.hierarchical handles delegation automatically.
-    """
     return [
         Task(
             description=task_input,
@@ -118,13 +96,12 @@ def _build_hierarchical_task(task_input: str) -> list[Task]:
 
 
 def build_roundtable_agents(
-    crew_orm, agents_orm: list[dict]
+    agents_orm: list[dict], tools: list | None = None,
 ) -> list[Agent]:
     """Build CrewAI Agents for roundtable discussion (without Crew/Task)."""
-    crew_tools = crew_orm.tools
     agents: list[Agent] = []
     for a in agents_orm:
-        tool_names = _resolve_tools(crew_tools, a.get("tools", []))
+        tool_names = _resolve_tools(tools, a.get("tools", []))
         agent_tools = get_crewai_tools(tool_names)
         agents.append(build_crewai_agent(a, agent_tools))
     return agents

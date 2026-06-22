@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.agents import router as agents_router
-from app.api.crews import router as crews_router
 from app.api.tasks import router as tasks_router
 from app.database import init_db
 from app.services.workspace import init_all_workspaces
@@ -20,7 +19,6 @@ app = FastAPI(title="CrewCraft", lifespan=lifespan)
 
 
 app.include_router(agents_router)
-app.include_router(crews_router)
 app.include_router(tasks_router)
 
 

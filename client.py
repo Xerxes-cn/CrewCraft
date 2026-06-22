@@ -6,36 +6,15 @@ class CrewCraftClient:
         self.base_url = base_url
         self._client = httpx.AsyncClient(base_url=base_url, timeout=300.0)
 
-    # --- Crews ---
-
-    async def list_crews(self) -> list[dict]:
-        r = await self._client.get("/api/crews")
-        r.raise_for_status()
-        return r.json()
-
-    async def get_crew(self, crew_id: int) -> dict:
-        r = await self._client.get(f"/api/crews/{crew_id}")
-        r.raise_for_status()
-        return r.json()
-
-    async def create_crew(self, data: dict) -> dict:
-        r = await self._client.post("/api/crews", json=data)
-        r.raise_for_status()
-        return r.json()
-
-    async def update_crew(self, crew_id: int, data: dict) -> dict:
-        r = await self._client.put(f"/api/crews/{crew_id}", json=data)
-        r.raise_for_status()
-        return r.json()
-
-    async def delete_crew(self, crew_id: int):
-        r = await self._client.delete(f"/api/crews/{crew_id}")
-        r.raise_for_status()
-
     # --- Agents ---
 
-    async def create_agent(self, crew_id: int, data: dict) -> dict:
-        r = await self._client.post(f"/api/crews/{crew_id}/agents", json=data)
+    async def list_agents(self) -> list[dict]:
+        r = await self._client.get("/api/agents")
+        r.raise_for_status()
+        return r.json()
+
+    async def create_agent(self, data: dict) -> dict:
+        r = await self._client.post("/api/agents", json=data)
         r.raise_for_status()
         return r.json()
 
@@ -62,16 +41,13 @@ class CrewCraftClient:
 
     # --- Tasks ---
 
-    async def run_task(self, crew_id: int, task_input: str) -> dict:
-        r = await self._client.post(
-            f"/api/crews/{crew_id}/run",
-            json={"input": task_input},
-        )
+    async def run_task(self, task_input: str) -> dict:
+        r = await self._client.post("/api/run", json={"input": task_input})
         r.raise_for_status()
         return r.json()
 
-    async def list_tasks(self, crew_id: int) -> list[dict]:
-        r = await self._client.get(f"/api/crews/{crew_id}/tasks")
+    async def list_tasks(self) -> list[dict]:
+        r = await self._client.get("/api/tasks")
         r.raise_for_status()
         return r.json()
 

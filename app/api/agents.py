@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import DEFAULT_CREW_ID, get_db
 from app.engine.skills import load_skills
 from app.engine.tools import Tool
-from app.models.orm import Crew, Agent
+from app.models.orm import Agent
 from app.schemas.api import AgentCreate, AgentResponse, AgentUpdate
 from app.services.workspace import init_agent_workspace, remove_agent_workspace
 
@@ -27,18 +27,22 @@ async def list_skills():
     return load_skills()
 
 
-@router.post("/crews/{crew_id}/agents", response_model=AgentResponse, status_code=201)
-async def create_agent(crew_id: int, data: AgentCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Crew).where(Crew.id == crew_id))
-    crew = result.scalar_one_or_none()
-    if not crew:
-        raise HTTPException(status_code=404, detail="Crew not found")
+@router.get("/agents", response_model=list[AgentResponse])
+async def list_agents(db: AsyncSession = Depends(get_db)):
+    """List all agents in the default team."""
+    result = await db.execute(
+        select(Agent).where(Agent.crew_id == DEFAULT_CREW_ID).order_by(Agent.order)
+    )
+    return result.scalars().all()
 
-    agent = Agent(crew_id=crew_id, **data.model_dump())
+
+@router.post("/agents", response_model=AgentResponse, status_code=201)
+async def create_agent(data: AgentCreate, db: AsyncSession = Depends(get_db)):
+    agent = Agent(crew_id=DEFAULT_CREW_ID, **data.model_dump())
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
-    init_agent_workspace(crew.id, crew.name, agent.name, agent.order)
+    init_agent_workspace(agent.id, agent.name, agent.order)
     return agent
 
 
@@ -64,10 +68,6 @@ async def delete_agent(agent_id: int, db: AsyncSession = Depends(get_db)):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    crew_result = await db.execute(select(Crew).where(Crew.id == agent.crew_id))
-    crew = crew_result.scalar_one_or_none()
-    if crew:
-        remove_agent_workspace(crew.id, crew.name, agent.name, agent.order)
-
+    remove_agent_workspace(agent.id, agent.name, agent.order)
     await db.delete(agent)
     await db.commit()

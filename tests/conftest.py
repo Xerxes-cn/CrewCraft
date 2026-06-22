@@ -42,11 +42,10 @@ async def global_setup():
 async def cleanup_data():
     """Clean all table data between tests, preserve workspace dirs."""
     yield
-    from app.models.orm import Agent, Task, Crew
+    from app.models.orm import Agent, Task
     async with async_session() as db:
         await db.execute(text("DELETE FROM agents"))
         await db.execute(text("DELETE FROM tasks"))
-        await db.execute(text("DELETE FROM crews"))
         await db.commit()
 
 

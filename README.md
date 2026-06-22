@@ -2,13 +2,13 @@
 
 **CrewCraft — 多智能体协作开发平台，轻松构建 AI 团队。**
 
-通过命令行创建 AI Agent 团队，为每个 Agent 配置角色和提示词，让一群 Agent 协作完成任务。支持 Roundtable（圆桌讨论）、Sequential（顺序执行）、Hierarchical（层级协作）三种工作流。
+启动即有一个默认团队，只需创建 Agent 即可开始协作。支持 Roundtable（圆桌讨论）、Sequential（顺序执行）、Hierarchical（层级协作）三种工作流。
 
 ## 特性
 
 - **纯 CLI 体验** — 所有操作通过命令行完成，适合脚本集成和自动化
-- **三种协作工作流** — Roundtable（圆桌讨论）、Sequential（流水线）、Hierarchical（Leader/Worker）
-- **Agent 全生命周期管理** — 创建、更新、删除 Agent，自定义角色和提示词
+- **零配置启动** — 启动即有一个默认团队，无需创建/管理团队
+- **Agent 管理** — 添加、更新、删除 Agent，自定义角色和提示词
 - **工具调用** — Agent 可调用文件读写、命令执行等工具
 - **技能预设** — 可配置技能组合，一键赋予 Agent 专业能力
 - **DeepSeek 驱动** — 默认使用 DeepSeek API，支持 OpenAI 兼容的 LLM
@@ -51,24 +51,19 @@ uv run uvicorn app.main:app --port 8000
 ### 3. 使用 CLI
 
 ```bash
-# 创建团队
-uv run python main.py create -n "写作团队" -d "负责博客写作和审核" -w roundtable
-
 # 添加 Agent
-uv run python main.py agent add 1 -n "研究员" -r "研究专家" -p "你是一个研究专家，擅长搜集和分析信息。"
-uv run python main.py agent add 1 -n "作者" -r "内容作者" -p "你是一个内容作者，擅长撰写清晰易读的文章。"
-uv run python main.py agent add 1 -n "审核" -r "审核编辑" -p "你是一个审核编辑，擅长发现文章中的问题。"
-uv run python main.py agent add 1 -n "分析师" -r "数据分析师" -p "你是一个数据分析师，擅长分析数据。"
-uv run python main.py agent add 1 -n "创意总监" -r "创意总监" -p "你是一个创意总监，擅长提出创意方案。"
+uv run python main.py agent add -n "研究员" -r "研究专家" -p "你是一个研究专家，擅长搜集和分析信息。"
+uv run python main.py agent add -n "作者" -r "内容作者" -p "你是一个内容作者，擅长撰写清晰易读的文章。"
+uv run python main.py agent add -n "审核" -r "审核编辑" -p "你是一个审核编辑，擅长发现文章中的问题。"
 
-# 查看团队
-uv run python main.py inspect 1
+# 列出所有 Agent
+uv run python main.py agent ls
 
 # 执行任务
-uv run python main.py run 1 --task "写一篇关于 AI 的博客"
+uv run python main.py run --task "写一篇关于 AI 的博客"
 
 # 查看任务历史
-uv run python main.py tasks 1
+uv run python main.py tasks
 
 # 查看任务详情
 uv run python main.py task 1
@@ -76,21 +71,12 @@ uv run python main.py task 1
 
 ## CLI 命令参考
 
-### 团队管理
-
-| 命令 | 说明 |
-|------|------|
-| `crewcraft ls` | 列出所有团队 |
-| `crewcraft create -n <名称> [-d 描述] [-w 工作流] [-r 最大轮数]` | 创建团队 |
-| `crewcraft inspect <ID>` | 查看团队详情 |
-| `crewcraft update <ID> [--name] [--desc] [--workflow] [--max-rounds] [--tools]` | 更新团队 |
-| `crewcraft delete <ID> [-f]` | 删除团队 |
-
 ### Agent 管理
 
 | 命令 | 说明 |
 |------|------|
-| `crewcraft agent add <团队ID> -n <名称> -r <角色> [-p 提示词] [-o 顺序] [-t 工具]` | 添加 Agent |
+| `crewcraft agent add -n <名称> -r <角色> [-p 提示词] [-o 顺序] [-t 工具]` | 添加 Agent |
+| `crewcraft agent ls` | 列出所有 Agent |
 | `crewcraft agent update <AgentID> [--name] [--role] [--prompt] [--order] [--tools]` | 更新 Agent |
 | `crewcraft agent remove <AgentID> [-f]` | 移除 Agent |
 
@@ -105,8 +91,8 @@ uv run python main.py task 1
 
 | 命令 | 说明 |
 |------|------|
-| `crewcraft run <团队ID> --task <内容> [-s]` | 执行任务 |
-| `crewcraft tasks <团队ID>` | 任务历史 |
+| `crewcraft run --task <内容>` | 执行任务 |
+| `crewcraft tasks` | 任务历史 |
 | `crewcraft task <任务ID>` | 任务详情 |
 
 ## 配置

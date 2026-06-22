@@ -5,32 +5,28 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.database import get_db
+from app.database import DEFAULT_CREW_ID, get_db
 from app.engine.builder import build_crew_and_tasks
 from app.engine.runner import run_crew_stream
 from app.engine.workflows.roundtable import run_roundtable_stream
 from app.models.orm import Crew, Task
 from app.schemas.api import TaskResponse, TaskRunRequest
-from app.services.workspace import agent_dir
 
 router = APIRouter(tags=["tasks"])
 
 
-def _agents_to_dicts(agents, crew_name: str = "", crew_tools: list | None = None) -> list[dict]:
+def _agents_to_dicts(agents) -> list[dict]:
     result = []
     for a in agents:
-        d = {
+        result.append({
             "id": a.id,
             "name": a.name,
             "role": a.role,
             "system_prompt": a.system_prompt,
-            "tools": crew_tools if crew_tools is not None else (a.tools or []),
+            "tools": a.tools or [],
             "llm_config": a.llm_config or {},
             "order": a.order,
-        }
-        if crew_name:
-            d["workspace"] = str(agent_dir(a.crew_id, crew_name, a.name, a.order))
-        result.append(d)
+        })
     return result
 
 
@@ -73,30 +69,29 @@ async def _stream_workflow(
         }
 
 
-@router.post("/api/crews/{crew_id}/run", response_model=TaskResponse, status_code=201)
-async def run_task(crew_id: int, data: TaskRunRequest, db: AsyncSession = Depends(get_db)):
+@router.post("/api/run", response_model=TaskResponse, status_code=201)
+async def run_task(data: TaskRunRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Crew).options(selectinload(Crew.agents)).where(Crew.id == crew_id)
+        select(Crew).options(selectinload(Crew.agents)).where(Crew.id == DEFAULT_CREW_ID)
     )
     crew = result.scalar_one_or_none()
-    if not crew:
-        raise HTTPException(status_code=404, detail="Crew not found")
-    if not crew.agents:
-        raise HTTPException(status_code=400, detail="Crew has no agents")
+    if not crew or not crew.agents:
+        raise HTTPException(status_code=400, detail="没有可用的 Agent，请先添加 Agent")
 
-    task = Task(crew_id=crew_id, input=data.input, status="running")
+    task = Task(crew_id=DEFAULT_CREW_ID, input=data.input, status="running")
     db.add(task)
     await db.commit()
     await db.refresh(task)
 
-    agents_dicts = _agents_to_dicts(crew.agents, crew.name, crew.tools)
-
+    agents_dicts = _agents_to_dicts(crew.agents)
     workflow_type = crew.workflow_type
 
     if workflow_type == "roundtable":
         crewai_crew = None
     else:
-        crewai_crew, _ = build_crew_and_tasks(crew, agents_dicts, data.input)
+        crewai_crew, _ = build_crew_and_tasks(
+            agents_dicts, data.input, workflow_type, crew.tools
+        )
 
     initial_state = {
         "task_input": data.input,
@@ -122,11 +117,10 @@ async def run_task(crew_id: int, data: TaskRunRequest, db: AsyncSession = Depend
     return task
 
 
-@router.get("/api/crews/{crew_id}/tasks", response_model=list[TaskResponse])
-async def list_tasks(crew_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/api/tasks", response_model=list[TaskResponse])
+async def list_tasks(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Task)
-        .where(Task.crew_id == crew_id)
         .order_by(Task.created_at.desc())
         .limit(50)
     )

@@ -4,38 +4,6 @@ from typing import Optional
 from pydantic import BaseModel
 
 
-# --- Crew ---
-
-class CrewCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    workflow_type: str = "sequential"
-    workflow_config: Optional[dict] = None
-    tools: Optional[list] = None
-
-
-class CrewUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    workflow_type: Optional[str] = None
-    workflow_config: Optional[dict] = None
-    tools: Optional[list] = None
-
-
-class CrewResponse(BaseModel):
-    id: int
-    name: str
-    description: Optional[str]
-    workflow_type: str
-    workflow_config: Optional[dict]
-    tools: Optional[list] = None
-    created_at: datetime
-    agents: list["AgentResponse"] = []
-
-    class Config:
-        from_attributes = True
-
-
 # --- Agent ---
 
 class AgentCreate(BaseModel):
@@ -60,7 +28,6 @@ class AgentUpdate(BaseModel):
 
 class AgentResponse(BaseModel):
     id: int
-    crew_id: int
     name: str
     role: str
     system_prompt: Optional[str]
@@ -81,7 +48,6 @@ class TaskRunRequest(BaseModel):
 
 class TaskResponse(BaseModel):
     id: int
-    crew_id: int
     status: str
     input: str
     messages: Optional[list]
