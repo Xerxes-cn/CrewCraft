@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, type Crew } from '../api/client';
-import MessageList from '../components/MessageList';
+import MessageList, { type MessageItem } from '../components/MessageList';
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
@@ -24,12 +24,6 @@ const btnStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
-interface Message {
-  agent_name: string;
-  agent_role: string;
-  content: string;
-}
-
 type Phase = 'idle' | 'task' | 'chat';
 
 export default function CrewRun() {
@@ -37,11 +31,11 @@ export default function CrewRun() {
   const navigate = useNavigate();
   const [crew, setCrew] = useState<Crew | null>(null);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const wsRef = useRef<WebSocket | null>(null);
-  const streamingRef = useRef<Message | null>(null);
+  const streamingRef = useRef<MessageItem | null>(null);
   const phaseRef = useRef<Phase>('idle');
 
   // Keep refs in sync so WebSocket callbacks always see latest values
@@ -70,12 +64,13 @@ export default function CrewRun() {
         streamingRef.current = null;
         setMessages((prev) => {
           const last = prev[prev.length - 1];
+          const newItem: MessageItem = { type: 'text', ...data.data };
           if (last && last.agent_name === data.data.agent_name && !last.agent_role) {
             const updated = [...prev];
-            updated[updated.length - 1] = data.data;
+            updated[updated.length - 1] = newItem;
             return updated;
           }
-          return [...prev, data.data];
+          return [...prev, newItem];
         });
       } else if (data.type === 'agent_chunk') {
         setMessages((prev) => {
@@ -95,6 +90,28 @@ export default function CrewRun() {
         setRunning(false);
         setPhase('chat');
         streamingRef.current = null;
+      } else if (data.type === 'tool_call') {
+        streamingRef.current = null;
+        setMessages((prev) => [...prev, {
+          type: 'tool_call',
+          agent_name: data.agent_name,
+          tool_name: data.tool_name,
+          arguments: data.arguments,
+        }]);
+      } else if (data.type === 'tool_result') {
+        streamingRef.current = null;
+        setMessages((prev) => {
+          const updated = [...prev];
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].type === 'tool_call' &&
+                updated[i].agent_name === data.agent_name &&
+                updated[i].tool_name === data.tool_name) {
+              updated[i] = { ...updated[i], type: 'tool_call_result', result: data.result };
+              break;
+            }
+          }
+          return updated;
+        });
       } else if (data.type === 'followup_complete') {
         setRunning(false);
         streamingRef.current = null;

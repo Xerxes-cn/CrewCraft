@@ -19,6 +19,7 @@ export interface Crew {
   description: string | null;
   workflow_type: string;
   workflow_config: Record<string, unknown> | null;
+  tools: string[] | null;
   created_at: string;
   agents: Agent[];
 }
@@ -59,6 +60,10 @@ export const api = {
   updateAgent: (id: number, data: Partial<Agent>) =>
     request<Agent>(`/agents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAgent: (id: number) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
+
+  // Tools & Skills
+  listTools: () => request<Array<{ name: string; description: string }>>('/tools'),
+  listSkills: () => request<Array<{ name: string; label: string; description: string; tools: string[] }>>('/skills'),
 
   // Prompt
   generatePrompt: (data: { role: string; crew_name: string; crew_description: string | null; workflow_type: string }) =>

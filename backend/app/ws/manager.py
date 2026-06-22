@@ -1,11 +1,14 @@
-import asyncio
-import json
+"""WebSocket connection manager and streaming helpers."""
+from __future__ import annotations
+
 from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import WebSocket
 
-from app.llm.deepseek import chat_completion_stream
+from app.engine.runner import run_crew_stream
+from app.engine.workflows.roundtable import run_roundtable_stream
+from app.engine.agent_loop import run_agent_stream
 
 
 class ConnectionManager:
@@ -34,33 +37,58 @@ manager = ConnectionManager()
 async def stream_workflow(
     crew_id: int,
     task_id: int,
-    compiled_graph,
+    crewai_crew,
     initial_state: dict,
 ) -> AsyncGenerator[dict, None]:
-    full_messages: list[dict] = []
+    """Run workflow with CrewAI and stream outputs via broadcast and yield."""
+    workflow_type = initial_state.get("workflow_type", "sequential")
 
-    async for event in compiled_graph.astream(initial_state):
-        for node_name, node_output in event.items():
-            if isinstance(node_output, dict) and "messages" in node_output:
-                new_messages = node_output["messages"][len(full_messages):]
-                for msg in new_messages:
-                    full_messages.append(msg)
-                    event_data = {
-                        "type": "agent_message",
-                        "task_id": task_id,
-                        "data": msg,
-                    }
-                    await manager.broadcast(crew_id, event_data)
-                    yield event_data
+    if workflow_type == "roundtable":
+        agents = initial_state["agents"]
+        task_input = initial_state["task_input"]
+        max_rounds = initial_state.get("max_rounds", 2)
 
-    final = {
-        "type": "workflow_complete",
-        "task_id": task_id,
-        "final_result": node_output.get("final_result", ""),
-        "messages": full_messages,
-    }
-    await manager.broadcast(crew_id, final)
-    yield final
+        all_messages: list[dict] = []
+        final_result = ""
+        async for event in run_roundtable_stream(agents, task_input, max_rounds):
+            if event["type"] == "chunk":
+                await manager.broadcast(crew_id, {
+                    "type": "agent_chunk",
+                    "agent_name": event["agent_name"],
+                    "agent_role": event.get("agent_role", ""),
+                    "content": event["content"],
+                })
+            elif event["type"] == "done":
+                msg = {
+                    "agent_name": event["agent_name"],
+                    "agent_role": event.get("agent_role", ""),
+                    "content": event["content"],
+                }
+                all_messages.append(msg)
+                await manager.broadcast(crew_id, {
+                    "type": "agent_message",
+                    "task_id": task_id,
+                    "data": msg,
+                })
+                if event["agent_name"] == "Summary":
+                    final_result = event["content"]
+
+        yield {
+            "type": "workflow_complete",
+            "task_id": task_id,
+            "final_result": final_result,
+            "messages": all_messages,
+        }
+    else:
+        all_messages, final_result = await run_crew_stream(
+            crewai_crew, crew_id, task_id, manager.broadcast
+        )
+        yield {
+            "type": "workflow_complete",
+            "task_id": task_id,
+            "final_result": final_result,
+            "messages": all_messages,
+        }
 
 
 async def stream_agent_round(
@@ -83,32 +111,36 @@ async def stream_agent_round(
     context = "\n".join(context_parts)
 
     for agent in agents:
-        system_prompt = agent.get("system_prompt") or f"你是{agent['name']}，{agent['role']}。"
-        if agent.get("workspace"):
-            system_prompt += f"\n\n你的独立工作目录为：{agent['workspace']}。你可以在此目录中读写文件，该目录与其他智能体隔离。"
-        messages = [{"role": "system", "content": system_prompt}]
+        async for event in run_agent_stream(agent, followup_input, context):
+            event_type = event["type"]
 
-        if context:
-            messages.append({"role": "user", "content": f"历史对话：\n{context}"})
-
-        messages.append({"role": "user", "content": f"用户的后续消息：{followup_input}\n\n请根据你的角色和对话历史，对用户的消息做出回应。"})
-
-        # Stream agent response character by character
-        full_content = ""
-        async for chunk in chat_completion_stream(messages=messages):
-            full_content += chunk
-            await manager.broadcast(crew_id, {
-                "type": "agent_chunk",
-                "agent_name": agent["name"],
-                "agent_role": agent["role"],
-                "content": chunk,
-            })
-
-        result = {"agent_name": agent["name"], "agent_role": agent["role"], "content": full_content}
-        await manager.broadcast(crew_id, {
-            "type": "agent_message",
-            "data": result,
-        })
-        results.append(result)
+            if event_type == "chunk":
+                await manager.broadcast(crew_id, {
+                    "type": "agent_chunk",
+                    "agent_name": agent["name"],
+                    "agent_role": agent["role"],
+                    "content": event["content"],
+                })
+            elif event_type == "tool_call":
+                await manager.broadcast(crew_id, {
+                    "type": "tool_call",
+                    "agent_name": agent["name"],
+                    "tool_name": event["tool_name"],
+                    "arguments": event["arguments"],
+                })
+            elif event_type == "tool_result":
+                await manager.broadcast(crew_id, {
+                    "type": "tool_result",
+                    "agent_name": agent["name"],
+                    "tool_name": event["tool_name"],
+                    "result": event["result"],
+                })
+            elif event_type == "done":
+                result = {"agent_name": agent["name"], "agent_role": agent["role"], "content": event["content"]}
+                await manager.broadcast(crew_id, {
+                    "type": "agent_message",
+                    "data": result,
+                })
+                results.append(result)
 
     return results

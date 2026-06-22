@@ -3,12 +3,29 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.llm.deepseek import chat_completion
+from app.llm.manager import llm
 from app.models.orm import Crew, Agent
 from app.schemas.api import AgentCreate, AgentResponse, AgentUpdate, GeneratePromptRequest, GeneratePromptResponse
+from app.engine.tools import Tool
+from app.engine.skills import load_skills
 from app.services.workspace import init_agent_workspace, remove_agent_workspace
 
 router = APIRouter(prefix="/api", tags=["agents"])
+
+
+@router.get("/skills")
+async def list_skills():
+    """Return all skill presets (from skills/*.md files)."""
+    return load_skills()
+
+
+@router.get("/tools")
+async def list_tools():
+    """Return all available tools with name and description for the frontend."""
+    return [
+        {"name": name, "description": cls.description}
+        for name, cls in Tool._tools.items()
+    ]
 
 
 @router.post("/crews/{crew_id}/agents", response_model=AgentResponse, status_code=201)
@@ -53,7 +70,7 @@ async def generate_prompt(data: GeneratePromptRequest):
 
 请生成系统提示词："""
 
-    prompt = await chat_completion(
+    prompt = await llm.chat_completion(
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},

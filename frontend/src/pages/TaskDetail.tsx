@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, type Task } from '../api/client';
-import MessageList from '../components/MessageList';
+import MessageList, { type MessageItem } from '../components/MessageList';
 
 const btnStyle: React.CSSProperties = {
   background: '#95a5a6',
@@ -26,7 +26,7 @@ export default function TaskDetail() {
 
   if (!task) return <p>加载中...</p>;
 
-  const msgs = (task.messages as Array<{ agent_name: string; agent_role: string; content: string }>) || [];
+  const msgs = (task.messages as MessageItem[]) || [];
 
   return (
     <div>

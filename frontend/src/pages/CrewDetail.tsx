@@ -20,11 +20,18 @@ export default function CrewDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [crew, setCrew] = useState<Crew | null>(null);
+  const [availableTools, setAvailableTools] = useState<Array<{ name: string; description: string }>>([]);
+  const [skills, setSkills] = useState<Array<{ name: string; label: string; description: string; tools: string[] }>>([]);
 
   const load = () => {
     if (!id) return;
     api.getCrew(Number(id)).then(setCrew).catch(console.error);
   };
+
+  useEffect(() => {
+    api.listTools().then(setAvailableTools).catch(() => {});
+    api.listSkills().then(setSkills).catch(() => {});
+  }, []);
 
   useEffect(load, [id]);
 
@@ -33,6 +40,27 @@ export default function CrewDetail() {
   const handleAddAgent = async (data: { name: string; role: string; system_prompt: string; order: number }) => {
     await api.createAgent(crew.id, data);
     load();
+  };
+
+  const currentTools = (crew?.tools as string[]) || [];
+
+  const toggleTool = (toolName: string) => {
+    if (!crew) return;
+    const updated = currentTools.includes(toolName)
+      ? currentTools.filter((t) => t !== toolName)
+      : [...currentTools, toolName];
+    setCrew({ ...crew, tools: updated });
+    api.updateCrew(crew.id, { tools: updated }).catch(console.error);
+  };
+
+  const toggleSkill = (skill: { name: string; label: string; description: string; tools: string[] }) => {
+    if (!crew) return;
+    const allSelected = skill.tools.every((t) => currentTools.includes(t));
+    const updated = allSelected
+      ? currentTools.filter((t) => !skill.tools.includes(t))
+      : [...new Set([...currentTools, ...skill.tools])];
+    setCrew({ ...crew, tools: updated });
+    api.updateCrew(crew.id, { tools: updated }).catch(console.error);
   };
 
   const handleDeleteAgent = async (agentId: number) => {
@@ -65,9 +93,69 @@ export default function CrewDetail() {
         onChangeMaxRounds={(rounds) => handleUpdateWorkflow(crew.workflow_type, rounds)}
       />
 
+      {skills.length > 0 && (
+        <div style={{ padding: '12px 16px', background: '#f0f4f8', borderRadius: 8, marginBottom: 12 }}>
+          <p style={{ fontSize: 14, color: '#555', margin: '0 0 8px 0', fontWeight: 500 }}>技能包</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {skills.map((skill) => {
+              const allSelected = skill.tools.every((t) => currentTools.includes(t));
+              return (
+                <button
+                  key={skill.name}
+                  type="button"
+                  title={skill.description}
+                  onClick={() => toggleSkill(skill)}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: allSelected ? '2px solid #2980b9' : '1px solid #ddd',
+                    background: allSelected ? '#eaf2f8' : '#fff',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: '#2c3e50', marginBottom: 2 }}>{skill.label}</div>
+                  <div style={{ fontSize: 11, color: '#888' }}>{skill.tools.join(', ')}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {availableTools.length > 0 && (
+        <div style={{ padding: '12px 16px', background: '#f8f9fa', borderRadius: 8, marginBottom: 16 }}>
+          <p style={{ fontSize: 14, color: '#555', margin: '0 0 8px 0', fontWeight: 500 }}>团队工具</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {availableTools.map((tool) => {
+              const selected = currentTools.includes(tool.name);
+              return (
+                <button
+                  key={tool.name}
+                  type="button"
+                  title={tool.description}
+                  onClick={() => toggleTool(tool.name)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    border: selected ? '1px solid #2980b9' : '1px solid #ddd',
+                    background: selected ? '#eaf2f8' : '#fff',
+                    color: selected ? '#2980b9' : '#888',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  {selected ? '✓ ' : ''}{tool.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <h3>智能体（{crew.agents.length}）</h3>
       {crew.agents.map((agent) => (
-        <AgentCard key={agent.id} agent={agent} onDelete={handleDeleteAgent} />
+        <AgentCard key={agent.id} agent={agent} onDelete={handleDeleteAgent} onUpdate={load} />
       ))}
 
       <AgentForm

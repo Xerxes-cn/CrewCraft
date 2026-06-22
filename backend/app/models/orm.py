@@ -15,6 +15,7 @@ class Crew(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     workflow_type: Mapped[str] = mapped_column(String(50), nullable=False, default="sequential")
     workflow_config: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    tools: Mapped[Optional[list]] = mapped_column(JSON, nullable=True, default=list)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db, async_session
-from app.engine.compiler import compile_crew_graph
+from app.engine.builder import build_crew_and_tasks, build_roundtable_agents
 from app.models.orm import Crew, Task
 from app.schemas.api import TaskResponse, TaskRunRequest
 from app.services.workspace import agent_dir
@@ -13,7 +13,7 @@ from app.ws.manager import manager, stream_workflow, stream_agent_round
 router = APIRouter(tags=["tasks"])
 
 
-def _agents_to_dicts(agents, crew_name: str = "") -> list[dict]:
+def _agents_to_dicts(agents, crew_name: str = "", crew_tools: list | None = None) -> list[dict]:
     result = []
     for a in agents:
         d = {
@@ -21,7 +21,7 @@ def _agents_to_dicts(agents, crew_name: str = "") -> list[dict]:
             "name": a.name,
             "role": a.role,
             "system_prompt": a.system_prompt,
-            "tools": a.tools or [],
+            "tools": crew_tools if crew_tools is not None else (a.tools or []),
             "llm_config": a.llm_config or {},
             "order": a.order,
         }
@@ -47,21 +47,26 @@ async def run_task(crew_id: int, data: TaskRunRequest, db: AsyncSession = Depend
     await db.commit()
     await db.refresh(task)
 
-    graph = compile_crew_graph(crew)
+    agents_dicts = _agents_to_dicts(crew.agents, crew.name, crew.tools)
+
+    workflow_type = crew.workflow_type
+
+    if workflow_type == "roundtable":
+        crewai_crew = None
+    else:
+        crewai_crew, _ = build_crew_and_tasks(crew, agents_dicts, data.input)
+
     initial_state = {
         "task_input": data.input,
         "messages": [],
-        "agents": _agents_to_dicts(crew.agents, crew.name),
-        "current_index": 0,
-        "final_result": "",
-        "current_round": 0,
+        "agents": agents_dicts,
+        "workflow_type": workflow_type,
         "max_rounds": (crew.workflow_config or {}).get("max_rounds", 2),
-        "plan": [],
     }
 
     all_messages = []
     final_result = ""
-    async for event in stream_workflow(crew_id, task.id, graph, initial_state):
+    async for event in stream_workflow(crew_id, task.id, crewai_crew, initial_state):
         if event["type"] == "workflow_complete":
             final_result = event.get("final_result", "")
             all_messages = event.get("messages", [])
@@ -99,27 +104,30 @@ async def stream_endpoint(ws: WebSocket, crew_id: int):
                         await ws.send_json({"type": "error", "message": "团队不存在或没有智能体"})
                         continue
 
-                    agents_dicts = _agents_to_dicts(crew.agents, crew.name)
+                    agents_dicts = _agents_to_dicts(crew.agents, crew.name, crew.tools)
                     task = Task(crew_id=crew_id, input=user_input, status="running")
                     db.add(task)
                     await db.commit()
                     await db.refresh(task)
 
-                    graph = compile_crew_graph(crew)
+                    workflow_type = crew.workflow_type
+
+                    if workflow_type == "roundtable":
+                        crewai_crew = None
+                    else:
+                        crewai_crew, _ = build_crew_and_tasks(crew, agents_dicts, user_input)
+
                     initial_state = {
                         "task_input": user_input,
                         "messages": [],
                         "agents": agents_dicts,
-                        "current_index": 0,
-                        "final_result": "",
-                        "current_round": 0,
+                        "workflow_type": workflow_type,
                         "max_rounds": (crew.workflow_config or {}).get("max_rounds", 2),
-                        "plan": [],
                     }
 
                     all_messages = []
                     final_result = ""
-                    async for event in stream_workflow(crew_id, task.id, graph, initial_state):
+                    async for event in stream_workflow(crew_id, task.id, crewai_crew, initial_state):
                         if event["type"] == "agent_message":
                             all_messages.append(event["data"])
                         if event["type"] == "workflow_complete":
@@ -141,13 +149,13 @@ async def stream_endpoint(ws: WebSocket, crew_id: int):
                         await ws.send_json({"type": "error", "message": "团队不存在或没有智能体"})
                         continue
 
-                    agents_dicts = _agents_to_dicts(crew.agents, crew.name)
+                    agents_dicts = _agents_to_dicts(crew.agents, crew.name, crew.tools)
 
                     # Send user message to frontend
                     user_msg = {"agent_name": "用户", "agent_role": "用户", "content": user_input}
                     await ws.send_json({"type": "agent_message", "data": user_msg})
 
-                    # Get conversation history (exclude user messages for now)
+                    # Get conversation history
                     history = await _get_recent_history(crew_id, limit=20)
 
                     await stream_agent_round(crew_id, agents_dicts, user_input, history)

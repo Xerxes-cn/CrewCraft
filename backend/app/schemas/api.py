@@ -11,6 +11,7 @@ class CrewCreate(BaseModel):
     description: Optional[str] = None
     workflow_type: str = "sequential"
     workflow_config: Optional[dict] = None
+    tools: Optional[list] = None
 
 
 class CrewUpdate(BaseModel):
@@ -18,6 +19,7 @@ class CrewUpdate(BaseModel):
     description: Optional[str] = None
     workflow_type: Optional[str] = None
     workflow_config: Optional[dict] = None
+    tools: Optional[list] = None
 
 
 class CrewResponse(BaseModel):
@@ -26,6 +28,7 @@ class CrewResponse(BaseModel):
     description: Optional[str]
     workflow_type: str
     workflow_config: Optional[dict]
+    tools: Optional[list] = None
     created_at: datetime
     agents: list["AgentResponse"] = []
 
