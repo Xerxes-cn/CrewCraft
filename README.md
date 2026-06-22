@@ -1,84 +1,113 @@
 # CrewCraft
 
-多 Agent 角色协作平台 —— 通过可视化界面创建 AI Agent 团队，为每个 Agent 配置不同角色，让一群 Agent 互相协作完成任务。
+**CrewCraft — 多智能体协作开发平台，轻松构建 AI 团队。**
 
-与 CrewAI、AutoGen 等需要写代码的方案不同，CrewCraft 提供完整的 Web UI，非技术用户也能零代码构建多 Agent 协作系统。
+通过命令行创建 AI Agent 团队，为每个 Agent 配置角色和提示词，让一群 Agent 协作完成任务。支持 Roundtable（圆桌讨论）、Sequential（顺序执行）、Hierarchical（层级协作）三种工作流。
 
 ## 特性
 
-- **可视化 Crew 管理** — 在 Web 界面中创建团队、添加 Agent、配置角色和提示词
-- **三种协作工作流** — Sequential（流水线）、Hierarchical（Leader/Worker）、Roundtable（圆桌讨论）
-- **实时流式展示** — WebSocket 推送 Agent 对话过程，实时查看协作进度
-- **CLI 工具** — 支持终端执行任务，方便脚本集成
-- **DeepSeek 驱动** — 默认使用 DeepSeek API，后续可扩展更多 LLM
+- **纯 CLI 体验** — 所有操作通过命令行完成，适合脚本集成和自动化
+- **三种协作工作流** — Roundtable（圆桌讨论）、Sequential（流水线）、Hierarchical（Leader/Worker）
+- **Agent 全生命周期管理** — 创建、更新、删除 Agent，自定义角色和提示词
+- **工具调用** — Agent 可调用文件读写、命令执行等工具
+- **技能预设** — 可配置技能组合，一键赋予 Agent 专业能力
+- **DeepSeek 驱动** — 默认使用 DeepSeek API，支持 OpenAI 兼容的 LLM
 
 ## 架构
 
 ```
-Browser (React) → FastAPI (REST + WebSocket) → LangGraph 运行时 → DeepSeek API
+CLI (Typer) → FastAPI REST → 引擎运行时 (CrewAI + LangGraph) → LLM API
 ```
 
 | 层 | 技术 |
 |---|---|
-| 前端 | React 18 + Vite + Zustand + React Router |
+| CLI | Python + Typer + httpx |
 | API | FastAPI (异步) |
-| Agent 引擎 | LangGraph StateGraph |
+| Agent 引擎 | CrewAI + LangGraph StateGraph |
 | LLM | DeepSeek API (OpenAI 兼容) |
 | 数据库 | SQLite (开发) / PostgreSQL (生产) |
-| CLI | Typer |
 
 ## 快速开始
 
 ### 环境要求
 
-- Python 3.11+
-- Node.js 20+
+- Python 3.10+
 - [uv](https://docs.astral.sh/uv/)（Python 包管理器）
 - DeepSeek API Key
 
-### 1. 启动后端
+### 1. 安装
 
 ```bash
-cd backend
 uv sync
+```
 
-# 设置 API Key
+### 2. 启动服务
+
+```bash
 export DEEPSEEK_API_KEY=your-api-key
-
-# 启动服务
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --port 8000
 ```
 
-### 2. 启动前端
+### 3. 使用 CLI
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# 创建团队
+uv run python main.py create -n "写作团队" -d "负责博客写作和审核" -w roundtable
+
+# 添加 Agent
+uv run python main.py agent add 1 -n "研究员" -r "研究专家" -p "你是一个研究专家，擅长搜集和分析信息。"
+uv run python main.py agent add 1 -n "作者" -r "内容作者" -p "你是一个内容作者，擅长撰写清晰易读的文章。"
+uv run python main.py agent add 1 -n "审核" -r "审核编辑" -p "你是一个审核编辑，擅长发现文章中的问题。"
+uv run python main.py agent add 1 -n "分析师" -r "数据分析师" -p "你是一个数据分析师，擅长分析数据。"
+uv run python main.py agent add 1 -n "创意总监" -r "创意总监" -p "你是一个创意总监，擅长提出创意方案。"
+
+# 查看团队
+uv run python main.py inspect 1
+
+# 执行任务
+uv run python main.py run 1 --task "写一篇关于 AI 的博客"
+
+# 查看任务历史
+uv run python main.py tasks 1
+
+# 查看任务详情
+uv run python main.py task 1
 ```
 
-访问 http://localhost:5173
+## CLI 命令参考
 
-### 3. 使用 CLI（可选）
+### 团队管理
 
-```bash
-cd cli
-uv run python main.py ls              # 列出所有团队
-uv run python main.py run 1 --task "写一篇关于 AI 的博客"  # 执行任务
-```
+| 命令 | 说明 |
+|------|------|
+| `crewcraft ls` | 列出所有团队 |
+| `crewcraft create -n <名称> [-d 描述] [-w 工作流] [-r 最大轮数]` | 创建团队 |
+| `crewcraft inspect <ID>` | 查看团队详情 |
+| `crewcraft update <ID> [--name] [--desc] [--workflow] [--max-rounds] [--tools]` | 更新团队 |
+| `crewcraft delete <ID> [-f]` | 删除团队 |
 
-### 4. 运行测试
+### Agent 管理
 
-```bash
-cd backend
-uv run pytest tests/ -v
-```
+| 命令 | 说明 |
+|------|------|
+| `crewcraft agent add <团队ID> -n <名称> -r <角色> [-p 提示词] [-o 顺序] [-t 工具]` | 添加 Agent |
+| `crewcraft agent update <AgentID> [--name] [--role] [--prompt] [--order] [--tools]` | 更新 Agent |
+| `crewcraft agent remove <AgentID> [-f]` | 移除 Agent |
 
-### Docker 部署
+### 发现
 
-```bash
-DEEPSEEK_API_KEY=your-key docker compose up -d
-```
+| 命令 | 说明 |
+|------|------|
+| `crewcraft tools` | 列出可用工具 |
+| `crewcraft skills` | 列出技能预设 |
+
+### 任务
+
+| 命令 | 说明 |
+|------|------|
+| `crewcraft run <团队ID> --task <内容> [-s]` | 执行任务 |
+| `crewcraft tasks <团队ID>` | 任务历史 |
+| `crewcraft task <任务ID>` | 任务详情 |
 
 ## 配置
 
@@ -91,61 +120,45 @@ DEEPSEEK_API_KEY=your-key docker compose up -d
 | `DEEPSEEK_MODEL` | `deepseek-chat` | 模型名称 |
 | `DATABASE_URL` | `sqlite+aiosqlite:///crewcraft.db` | 数据库连接 |
 
-## 工作流类型
+## 运行测试
 
-### Sequential（顺序执行）
-Agent 按顺序依次执行，前一个的输出作为后一个的上下文。适合流水线任务：研究 → 撰写 → 审核。
+```bash
+uv run pytest tests/ -v
+```
 
-### Hierarchical（层级协作）
-Leader Agent 自动拆解任务并分配给 Worker 执行。适合需要规划和分工的复杂任务。
+## Docker 部署
 
-### Roundtable（圆桌讨论）
-所有 Agent 自由讨论多轮，最后汇总共识。适合需要多角度分析的任务。
+```bash
+DEEPSEEK_API_KEY=your-key docker compose up -d
+```
 
 ## 项目结构
 
 ```
 CrewCraft/
-├── backend/
-│   ├── app/
-│   │   ├── api/              # REST + WebSocket 路由
-│   │   ├── models/           # SQLAlchemy ORM 模型
-│   │   ├── schemas/          # Pydantic 请求/响应模型
-│   │   ├── engine/           # LangGraph 工作流引擎
-│   │   │   ├── compiler.py   # 配置 → Graph 编译器
-│   │   │   ├── agent_loop.py # Agent LLM 调用循环
-│   │   │   └── workflows/    # 三种工作流实现
-│   │   ├── llm/              # DeepSeek API 封装
-│   │   └── ws/               # WebSocket 管理
-│   ├── pyproject.toml         # 项目配置与依赖
-│   └── uv.lock                # 依赖锁文件
-├── frontend/
-│   └── src/
-│       ├── pages/            # 页面组件
-│       ├── components/       # 共用 UI 组件
-│       ├── api/              # API 调用封装
-│       └── store/            # Zustand 状态
-├── cli/                      # 命令行工具
+├── app/
+│   ├── api/              # REST 路由
+│   ├── models/           # SQLAlchemy ORM 模型
+│   ├── schemas/          # Pydantic 请求/响应模型
+│   ├── engine/           # 工作流引擎
+│   │   ├── builder.py    # 配置 → Crew 构建器
+│   │   ├── runner.py     # CrewAI 执行器
+│   │   ├── agent_loop.py # Agent LLM 调用循环
+│   │   ├── tools.py      # 工具系统
+│   │   ├── skills.py     # 技能加载器
+│   │   └── workflows/    # 工作流实现
+│   ├── llm/              # LLM 封装
+│   └── services/         # 工作区等服务
+├── skills/               # 技能预设 Markdown 文件
+├── tests/                # 测试
+├── main.py               # CLI 入口
+├── client.py             # API 客户端
+├── pyproject.toml
+├── uv.lock
+├── Dockerfile
 ├── docker-compose.yml
-└── docs/superpowers/         # 设计文档和实现计划
+└── docs/
 ```
-
-## API 概览
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/crews` | 创建团队 |
-| GET | `/api/crews` | 团队列表 |
-| GET | `/api/crews/{id}` | 团队详情 |
-| PUT | `/api/crews/{id}` | 更新团队 |
-| DELETE | `/api/crews/{id}` | 删除团队 |
-| POST | `/api/crews/{id}/agents` | 添加成员 |
-| PUT | `/api/agents/{id}` | 更新成员 |
-| DELETE | `/api/agents/{id}` | 删除成员 |
-| POST | `/api/crews/{id}/run` | 执行任务 |
-| WS | `/api/crews/{id}/stream` | 实时流订阅 |
-| GET | `/api/crews/{id}/tasks` | 任务历史 |
-| GET | `/api/tasks/{id}` | 任务详情 |
 
 ## License
 

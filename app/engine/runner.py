@@ -1,23 +1,29 @@
-"""CrewAI execution runner with WebSocket streaming."""
+"""CrewAI execution runner."""
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from typing import Any
 
 from crewai import Crew
 from crewai.types.streaming import StreamChunkType
 
 
+async def _noop(*args, **kwargs):
+    pass
+
+
 async def run_crew_stream(
     crew: Crew,
     crew_id: int,
     task_id: int,
-    broadcast,
+    broadcast=None,
 ) -> tuple[list[dict], str]:
-    """Run a CrewAI crew with streaming to WebSocket.
+    """Run a CrewAI crew, optionally streaming via a broadcast callback.
 
     Returns (all_messages, final_result).
     """
+    if broadcast is None:
+        broadcast = _noop
+
     all_messages: list[dict] = []
     current_agent: str | None = None
     content_buf: str = ""

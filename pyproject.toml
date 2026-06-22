@@ -1,7 +1,7 @@
 [project]
 name = "crewcraft"
 version = "0.1.0"
-description = "Multi-Agent Role Collaboration Platform"
+description = "CrewCraft — 多智能体协作开发平台，轻松构建 AI 团队"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.110.0",

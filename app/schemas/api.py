@@ -75,17 +75,6 @@ class AgentResponse(BaseModel):
 
 # --- Task ---
 
-class GeneratePromptRequest(BaseModel):
-    role: str
-    crew_name: str
-    crew_description: Optional[str] = None
-    workflow_type: str = "sequential"
-
-
-class GeneratePromptResponse(BaseModel):
-    prompt: str
-
-
 class TaskRunRequest(BaseModel):
     input: str
 
