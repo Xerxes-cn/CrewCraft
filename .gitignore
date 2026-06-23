@@ -1,7 +1,11 @@
-.venv/
-*.db
-.idea/
 __pycache__/
-*.pyc
-.env
-workspace/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+.uv/
+uv.lock
+data/
+.idea/
+.claude/
+todo.md
