@@ -49,24 +49,32 @@ CREWCRAFT_AGENT_DEPLOY_MODE=docker   # docker | subprocess (default)
 - 入口: `python -m app.agent.server`
 - 通过环境变量配置: `CREWCRAFT_AGENT_NAME`, `CREWCRAFT_AGENT_PORT`, `CREWCRAFT_GATEWAY_WS`
 
-### 使用
+### 部署方式
+
+**方式一：docker compose（推荐）**
 
 ```bash
-# 构建镜像
 docker build -f Dockerfile.agent -t crewcraft-agent .
-
-# 配置
-echo "CREWCRAFT_AGENT_DEPLOY_MODE=docker" >> .env
-
-# 启动 gateway（host 进程）
-crewcraft gateway start
-
-# 创建 agent
-crewcraft agent create --name researcher --desc "..."
-
-# Gateway 自动以 Docker 容器启动 agent
-crewcraft task run "帮我研究..."
+docker compose up -d
+crewcraft  # 交互
 ```
+
+**方式二：手动部署**
+
+```bash
+docker build -t crewcraft-gateway .
+docker build -f Dockerfile.agent -t crewcraft-agent .
+echo "CREWCRAFT_AGENT_DEPLOY_MODE=docker" >> .env
+crewcraft gateway start  # 或 docker run crewcraft-gateway
+```
+
+### 文件
+
+| 文件 | 用途 |
+|------|------|
+| `Dockerfile` | Gateway 镜像 |
+| `Dockerfile.agent` | Agent 运行时镜像 |
+| `docker-compose.yml` | 一键部署 |
 
 ## 改动文件
 
