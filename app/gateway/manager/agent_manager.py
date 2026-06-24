@@ -15,11 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from app.config import config
 
-# Default data directory, configurable via env
-DATA_DIR = Path(os.getenv("CREWCRAFT_DATA_DIR", "data"))
-AGENTS_DIR = DATA_DIR / "agents"
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,7 +64,7 @@ class AgentManager:
     """Manages agent configuration and process lifecycle."""
 
     def __init__(self, data_dir: Path | str | None = None):
-        self.data_dir = Path(data_dir) if data_dir else DATA_DIR
+        self.data_dir = Path(data_dir) if data_dir else config.data_dir
         self.agents_dir = self.data_dir / "agents"
         self.agents_dir.mkdir(parents=True, exist_ok=True)
         # agent_name -> asyncio.subprocess.Process
@@ -112,9 +110,9 @@ class AgentManager:
         return configs
 
     def next_port(self) -> int:
-        """Find the next available port starting from 9001."""
+        """Find the next available port."""
+        port = config.agent_port_start
         existing = {c.port for c in self.list_configs()}
-        port = 9001
         while port in existing:
             port += 1
         return port

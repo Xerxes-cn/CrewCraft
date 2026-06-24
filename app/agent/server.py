@@ -13,15 +13,16 @@ import asyncio
 import json
 import logging
 import os
-import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import websockets
 
+from app.config import config
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=config.log_level,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -30,13 +31,10 @@ logger = logging.getLogger(__name__)
 
 AGENT_NAME = os.getenv("CREWCRAFT_AGENT_NAME", "default")
 AGENT_PORT = int(os.getenv("CREWCRAFT_AGENT_PORT", "9001"))
-DATA_DIR = Path(os.getenv("CREWCRAFT_DATA_DIR", "data"))
-GATEWAY_WS = os.getenv("CREWCRAFT_GATEWAY_WS", "ws://127.0.0.1:8765")
 
-IDLE_TIMEOUT = 300  # seconds, can be overridden from agent config
 TOOL_RESULT_TRUNCATE = 100  # characters to keep in sessions.json
 
-SESSION_DIR = DATA_DIR / "sessions" / AGENT_NAME
+SESSION_DIR = config.data_dir / "sessions" / AGENT_NAME
 
 
 # ── Session persistence ────────────────────────────────────────────────
@@ -212,13 +210,14 @@ async def agent_loop():
     global _current_task_id
 
     # Agent starts with empty config — gateway will provide it on registration
-    config: dict = {}
-    idle_timeout = IDLE_TIMEOUT
+    agent_config: dict = {}
+    idle_timeout = config.agent_idle_timeout
     last_task_time = asyncio.get_event_loop().time()
 
-    logger.info(f"Agent {AGENT_NAME} connecting to gateway at {GATEWAY_WS}")
+    gateway_ws_url = os.getenv("CREWCRAFT_GATEWAY_WS", config.ws_url)
+    logger.info(f"Agent {AGENT_NAME} connecting to gateway at {gateway_ws_url}")
 
-    async for ws in websockets.connect(GATEWAY_WS):
+    async for ws in websockets.connect(gateway_ws_url):
         try:
             # ── Phase 1: Bidirectional registration ──────────────────────
             await ws.send(json.dumps({
@@ -239,10 +238,10 @@ async def agent_loop():
                 logger.error(f"Expected 'registered', got '{msg.get('type')}'")
                 return
 
-            config = msg.get("config", {})
-            idle_timeout = config.get("idle_timeout", IDLE_TIMEOUT)
-            logger.info(f"Agent {AGENT_NAME} registered (model={config.get('model')}, "
-                        f"tools={config.get('tools')}, idle_timeout={idle_timeout}s)")
+            agent_config = msg.get("config", {})
+            idle_timeout = agent_config.get("idle_timeout", config.agent_idle_timeout)
+            logger.info(f"Agent {AGENT_NAME} registered (model={agent_config.get('model')}, "
+                        f"tools={agent_config.get('tools')}, idle_timeout={idle_timeout}s)")
 
             # ── Phase 2: Main message loop ───────────────────────────────
             async for raw in ws:
@@ -273,7 +272,7 @@ async def agent_loop():
                     }))
 
                     try:
-                        result = await run_task(session_id, content, ws, config)
+                        result = await run_task(session_id, content, ws, agent_config)
 
                         # Send completion
                         await ws.send(json.dumps({
