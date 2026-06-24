@@ -1,4 +1,4 @@
-"""Web tools: search and fetch."""
+"""Web 工具：搜索和抓取。"""
 
 import json
 import re
@@ -15,7 +15,7 @@ from .registry import register
     },
 )
 async def web_search(query: str, max_results: int = 5):
-    """Search the web using DuckDuckGo HTML (no API key required)."""
+    """使用 DuckDuckGo HTML 搜索网页（无需 API 密钥）。"""
     import httpx
     from html import unescape
 
@@ -57,7 +57,7 @@ async def web_search(query: str, max_results: int = 5):
     },
 )
 async def web_fetch(url: str, method: str = "GET", body: str = ""):
-    """Fetch a URL and return its text content."""
+    """抓取 URL 并返回其文本内容。"""
     import httpx
 
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:

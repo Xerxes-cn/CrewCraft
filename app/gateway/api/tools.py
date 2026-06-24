@@ -1,7 +1,7 @@
-"""Tool catalog API route.
+"""工具目录 API 路由。
 
-Exposes the list of available tools so CLI users can
-discover what tools are available for agent configuration.
+暴露可用工具列表，使 CLI 用户能够发现
+可用于 Agent 配置的工具。
 """
 
 from fastapi import APIRouter
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/tools", tags=["tools"])
 
 @router.get("")
 async def list_tools():
-    """List all available tools with their descriptions and parameters."""
+    """列出所有可用工具及其描述和参数。"""
     tools = []
     for tool in registry.list_all():
         tools.append(tool.to_dict())

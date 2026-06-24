@@ -1,4 +1,4 @@
-"""Tool registry — core classes, decorator, and sync wrappers."""
+"""工具注册表 — 核心类、装饰器和同步包装器。"""
 
 import asyncio
 import logging
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Tool:
-    """A callable tool with metadata for registration."""
+    """一个带有元数据的可调用工具，用于注册。"""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class Tool:
         return self.func(**kwargs)
 
     def to_openai_schema(self) -> dict:
-        """Convert to OpenAI-compatible function schema."""
+        """转换为 OpenAI 兼容的函数 schema。"""
         return {
             "type": "function",
             "function": {
@@ -52,7 +52,7 @@ class Tool:
 
 
 class ToolRegistry:
-    """Registry of all available tools."""
+    """所有可用工具的注册表。"""
 
     def __init__(self):
         self._tools: dict[str, Tool] = {}
@@ -70,7 +70,7 @@ class ToolRegistry:
         return sorted(self._tools.keys())
 
     def build_for_agent(self, tool_names: list[str]) -> list:
-        """Build a list of tool schemas for passing to deepagents."""
+        """构建工具 schema 列表，用于传递给 deepagents。"""
         schemas = []
         for name in tool_names:
             tool = self._tools.get(name)
@@ -79,16 +79,16 @@ class ToolRegistry:
         return schemas
 
     def build_callables(self, tool_names: list[str]) -> list[Callable]:
-        """Build a list of callable functions for passing to deepagents."""
+        """构建可调用函数列表，用于传递给 deepagents。"""
         return [self._tools[name].func for name in tool_names if name in self._tools]
 
 
-# Singleton registry
+# 单例注册表
 registry = ToolRegistry()
 
 
 def register(name: str, description: str, parameters: dict = None):
-    """Decorator to register a function as a tool."""
+    """装饰器，用于将函数注册为一个工具。"""
 
     def decorator(func):
         tool = Tool(name=name, description=description, func=func, parameters=parameters)
@@ -98,10 +98,10 @@ def register(name: str, description: str, parameters: dict = None):
     return decorator
 
 
-# ── Sync wrappers ──────────────────────────────────────────────────────
+# ── 同步包装器 ───────────────────────────────────────────────────────────
 
 def _sync_wrapper(async_func):
-    """Wrap an async function into a sync function for deepagents."""
+    """将异步函数包装为同步函数，供 deepagents 使用。"""
 
     def wrapper(**kwargs):
         try:
@@ -120,7 +120,7 @@ def _sync_wrapper(async_func):
 
 
 def get_tool_callable(name: str) -> Optional[Callable]:
-    """Get a sync callable for a tool by name, ready for deepagents."""
+    """按名称获取工具的同步可调用对象，可直接用于 deepagents。"""
     tool = registry.get(name)
     if not tool:
         return None
@@ -132,7 +132,7 @@ def get_tool_callable(name: str) -> Optional[Callable]:
 
 
 def get_tool_callables(names: list[str]) -> list[Callable]:
-    """Get sync callables for a list of tool names."""
+    """获取给定名称列表的同步可调用对象。"""
     tools = []
     for name in names:
         fn = get_tool_callable(name)

@@ -1,11 +1,11 @@
-"""Cron scheduler for asynchronous and recurring tasks.
+"""Cron 调度器，用于异步和周期性任务。
 
-Supports:
-- One-shot delayed tasks
-- Recurring tasks (cron-like scheduling)
-- Background task execution
+支持：
+- 一次性延迟任务
+- 周期性任务（类 cron 调度）
+- 后台任务执行
 
-Tasks are registered here and executed asynchronously within the gateway.
+任务在此注册并在网关内异步执行。
 """
 
 import asyncio
@@ -26,12 +26,12 @@ CRON_DIR = DATA_DIR / "cron"
 
 @dataclass
 class CronJob:
-    """A scheduled or recurring task."""
+    """一个计划性或周期性任务。"""
 
     job_id: str
     agent_name: str
     content: str
-    interval_seconds: int = 0  # 0 = one-shot
+    interval_seconds: int = 0  # 0 = 一次性
     next_run: float = 0.0
     created_at: str = ""
     enabled: bool = True
@@ -61,10 +61,10 @@ class CronJob:
 
 
 class Scheduler:
-    """Simple in-process scheduler for cron jobs.
+    """简单的进程内 Cron 作业调度器。
 
-    Uses asyncio event loop for timing. Jobs are persisted to
-    data/cron/jobs.json.
+    使用 asyncio 事件循环进行计时。作业持久化到
+    data/cron/jobs.json。
     """
 
     def __init__(self):
@@ -75,12 +75,12 @@ class Scheduler:
         self._task_callback: Optional[Callable[[str, str], Coroutine]] = None
 
     def set_task_callback(self, cb: Callable[[str, str], Coroutine]):
-        """Set the callback to execute when a cron job fires.
-        Called with (agent_name, content).
+        """设置 Cron 作业触发时要执行的回调。
+        调用参数为 (agent_name, content)。
         """
         self._task_callback = cb
 
-    # ── Job persistence ────────────────────────────────────────────
+    # ── 作业持久化 ────────────────────────────────────────────────
 
     def _jobs_path(self) -> Path:
         return CRON_DIR / "jobs.json"
@@ -101,7 +101,7 @@ class Scheduler:
             except (json.JSONDecodeError, KeyError) as e:
                 logger.warning(f"Invalid cron jobs file: {e}")
 
-    # ── Job management ─────────────────────────────────────────────
+    # ── 作业管理 ─────────────────────────────────────────────────
 
     def add_job(
         self,
@@ -110,7 +110,7 @@ class Scheduler:
         interval_seconds: int = 0,
         job_id: Optional[str] = None,
     ) -> str:
-        """Add a cron job. Returns the job_id."""
+        """添加一个 Cron 作业。返回 job_id。"""
         import uuid
 
         job_id = job_id or f"cron_{uuid.uuid4().hex[:12]}"
@@ -131,7 +131,7 @@ class Scheduler:
         return job_id
 
     def remove_job(self, job_id: str) -> bool:
-        """Remove a cron job. Returns False if not found."""
+        """移除一个 Cron 作业。未找到则返回 False。"""
         if job_id not in self._jobs:
             return False
         del self._jobs[job_id]
@@ -147,10 +147,10 @@ class Scheduler:
     def list_jobs(self) -> list[CronJob]:
         return list(self._jobs.values())
 
-    # ── Scheduler loop ─────────────────────────────────────────────
+    # ── 调度器循环 ─────────────────────────────────────────────────
 
     async def start(self):
-        """Start the scheduler loop."""
+        """启动调度器循环。"""
         self._load_jobs()
         self._running = True
         logger.info("Scheduler started")
@@ -162,7 +162,7 @@ class Scheduler:
                 if not job.enabled:
                     continue
                 if job.next_run and job.next_run <= now:
-                    # Fire the job
+                    # 触发作业
                     logger.info(f"Firing cron job {job.job_id} → {job.agent_name}")
                     if self._task_callback:
                         try:
@@ -170,18 +170,18 @@ class Scheduler:
                         except Exception:
                             logger.exception(f"Cron job {job.job_id} failed")
 
-                    # Reschedule recurring jobs
+                    # 为周期性作业重新调度
                     if job.interval_seconds > 0:
                         job.next_run = now + job.interval_seconds
                     else:
-                        # One-shot: disable after firing
+                        # 一次性作业：触发后禁用
                         job.enabled = False
                     self._save_jobs()
 
             await asyncio.sleep(1)
 
     async def stop(self):
-        """Stop the scheduler."""
+        """停止调度器。"""
         self._running = False
         for task in self._tasks.values():
             if not task.done():
@@ -189,5 +189,5 @@ class Scheduler:
         logger.info("Scheduler stopped")
 
 
-# Singleton
+# 单例
 scheduler = Scheduler()

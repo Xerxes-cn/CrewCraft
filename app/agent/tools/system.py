@@ -1,4 +1,4 @@
-"""System tools: shell execution and file operations."""
+"""系统工具：Shell 执行和文件操作。"""
 
 import asyncio
 import json
@@ -17,7 +17,7 @@ from .registry import register
     },
 )
 async def shell_exec(command: str, working_dir: str = "."):
-    """Execute a shell command and return output."""
+    """执行 Shell 命令并返回输出。"""
     try:
         proc = await asyncio.create_subprocess_shell(
             command,
@@ -48,7 +48,7 @@ async def shell_exec(command: str, working_dir: str = "."):
     },
 )
 async def file_ops(action: str, path: str, content: str = ""):
-    """File operations helper."""
+    """文件操作助手。"""
     full_path = os.path.abspath(path)
 
     try:

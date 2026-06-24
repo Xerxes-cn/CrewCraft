@@ -1,6 +1,6 @@
-"""CLI client for CrewCraft.
+"""CrewCraft CLI 客户端。
 
-Communicates with the Gateway via REST API.
+通过 REST API 与网关通信。
 """
 
 import os
@@ -14,18 +14,18 @@ from app.config import config
 
 GATEWAY_URL = os.getenv("CREWCRAFT_GATEWAY_URL", f"http://{config.gateway_host}:{config.gateway_port}")
 
-# ── Agent commands ─────────────────────────────────────────────────────
+# ── Agent 命令 ───────────────────────────────────────────────────────────
 
-agent_app = typer.Typer(help="Manage agents", no_args_is_help=True)
+agent_app = typer.Typer(help="管理智能体", no_args_is_help=True)
 
 
 @agent_app.command("create")
 def agent_create(
-    name: str = typer.Option(..., "--name", "-n", help="Agent name (unique identifier)"),
-    model: str = typer.Option(..., "--model", "-m", help="LLM model (e.g. deepseek:chat)"),
-    desc: str = typer.Option("", "--desc", "-d", help="Describe what the agent does (system prompt auto-generated)"),
+    name: str = typer.Option(..., "--name", "-n", help="Agent 名称（唯一标识符）"),
+    model: str = typer.Option(..., "--model", "-m", help="LLM 模型（例如 deepseek:chat）"),
+    desc: str = typer.Option("", "--desc", "-d", help="描述 Agent 的功能（系统提示词自动生成）"),
 ):
-    """Create a new agent. System prompt is auto-generated from --desc."""
+    """创建新 Agent。系统提示词根据 --desc 自动生成。"""
     try:
         resp = httpx.post(
             f"{GATEWAY_URL}/api/agents",
@@ -48,7 +48,7 @@ def agent_create(
 
 @agent_app.command("list")
 def agent_list():
-    """List all agents."""
+    """列出所有 Agent。"""
     try:
         resp = httpx.get(f"{GATEWAY_URL}/api/agents")
         resp.raise_for_status()
@@ -68,9 +68,9 @@ def agent_list():
 
 @agent_app.command("inspect")
 def agent_inspect(
-    name: str = typer.Argument(..., help="Agent name"),
+    name: str = typer.Argument(..., help="Agent 名称"),
 ):
-    """Show agent configuration."""
+    """查看 Agent 配置。"""
     try:
         resp = httpx.get(f"{GATEWAY_URL}/api/agents/{name}")
         resp.raise_for_status()
@@ -96,10 +96,10 @@ def agent_inspect(
 
 @agent_app.command("delete")
 def agent_delete(
-    name: str = typer.Argument(..., help="Agent name"),
-    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+    name: str = typer.Argument(..., help="Agent 名称"),
+    force: bool = typer.Option(False, "--force", "-f", help="跳过确认"),
 ):
-    """Delete an agent."""
+    """删除一个 Agent。"""
     if not force:
         confirm = typer.confirm(f"Delete agent '{name}'? This cannot be undone.")
         if not confirm:
@@ -119,10 +119,10 @@ def agent_delete(
 
 @agent_app.command("generate-prompt")
 def agent_generate_prompt(
-    name: str = typer.Argument(..., help="Agent name"),
-    desc: str = typer.Option("", "--desc", "-d", help="New description to regenerate prompt from"),
+    name: str = typer.Argument(..., help="Agent 名称"),
+    desc: str = typer.Option("", "--desc", "-d", help="用于重新生成提示词的新描述"),
 ):
-    """Regenerate an agent's system prompt from a description."""
+    """根据描述重新生成 Agent 的系统提示词。"""
     try:
         resp = httpx.post(
             f"{GATEWAY_URL}/api/agents/{name}/generate-prompt",
@@ -138,18 +138,18 @@ def agent_generate_prompt(
         raise typer.Exit(1)
 
 
-# ── Task commands ──────────────────────────────────────────────────────
+# ── 任务命令 ─────────────────────────────────────────────────────────────
 
-task_app = typer.Typer(help="Manage tasks", no_args_is_help=True)
+task_app = typer.Typer(help="管理任务", no_args_is_help=True)
 
 
 @task_app.command("run")
 def task_run(
-    content: str = typer.Argument(..., help="Task description"),
-    agent: str = typer.Option(None, "--agent", "-a", help="Target agent (omit for auto-orchestration)"),
-    poll: bool = typer.Option(True, "--poll/--no-poll", help="Poll for result until complete"),
+    content: str = typer.Argument(..., help="任务描述"),
+    agent: str = typer.Option(None, "--agent", "-a", help="目标 Agent（省略则自动编排）"),
+    poll: bool = typer.Option(True, "--poll/--no-poll", help="轮询结果直到完成"),
 ):
-    """Create a task. Without --agent, the orchestrator auto-assigns it."""
+    """创建任务。不带 --agent 时，编排器自动分配。"""
     try:
         payload = {"content": content}
         if agent:
@@ -173,7 +173,7 @@ def task_run(
 
 
 def _poll_task(task_id: str):
-    """Poll task status until completion."""
+    """轮询任务状态直到完成。"""
     try:
         while True:
             resp = httpx.get(f"{GATEWAY_URL}/api/tasks/{task_id}")
@@ -200,9 +200,9 @@ def _poll_task(task_id: str):
 
 @task_app.command("status")
 def task_status(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_id: str = typer.Argument(..., help="任务 ID"),
 ):
-    """Check task status."""
+    """查看任务状态。"""
     try:
         resp = httpx.get(f"{GATEWAY_URL}/api/tasks/{task_id}")
         resp.raise_for_status()
@@ -225,7 +225,7 @@ def task_status(
 
 @task_app.command("list")
 def task_list():
-    """List all tasks."""
+    """列出所有任务。"""
     try:
         resp = httpx.get(f"{GATEWAY_URL}/api/tasks")
         resp.raise_for_status()
@@ -242,16 +242,16 @@ def task_list():
         raise typer.Exit(1)
 
 
-# ── Session commands ───────────────────────────────────────────────────
+# ── 会话命令 ─────────────────────────────────────────────────────────────
 
-session_app = typer.Typer(help="Manage sessions", no_args_is_help=True)
+session_app = typer.Typer(help="管理会话", no_args_is_help=True)
 
 
 @session_app.command("list")
 def session_list(
-    agent: str = typer.Option(..., "--agent", "-a", help="Agent name"),
+    agent: str = typer.Option(..., "--agent", "-a", help="Agent 名称"),
 ):
-    """List sessions for an agent."""
+    """列出某个 Agent 的会话。"""
     try:
         resp = httpx.get(f"{GATEWAY_URL}/api/agents/{agent}/sessions")
         resp.raise_for_status()
@@ -273,10 +273,10 @@ def session_list(
 
 @session_app.command("show")
 def session_show(
-    session_id: str = typer.Argument(..., help="Session ID"),
-    agent: str = typer.Option(None, "--agent", "-a", help="Agent name (auto-detect if omitted)"),
+    session_id: str = typer.Argument(..., help="会话 ID"),
+    agent: str = typer.Option(None, "--agent", "-a", help="Agent 名称（如省略则自动检测）"),
 ):
-    """Show full conversation history for a session."""
+    """查看某个会话的完整对话历史。"""
     if not agent:
         typer.echo("✗ --agent is required (auto-detect not yet supported)", err=True)
         raise typer.Exit(1)
@@ -301,17 +301,17 @@ def session_show(
         raise typer.Exit(1)
 
 
-# ── Gateway commands ───────────────────────────────────────────────────
+# ── 网关命令 ─────────────────────────────────────────────────────────────
 
-gateway_app = typer.Typer(help="Gateway server", no_args_is_help=True)
+gateway_app = typer.Typer(help="网关服务器", no_args_is_help=True)
 
 
 @gateway_app.command("start")
 def gateway_start(
-    host: str = typer.Option(None, "--host", "-h", help="Bind address"),
-    port: int = typer.Option(None, "--port", "-p", help="Bind port"),
+    host: str = typer.Option(None, "--host", "-h", help="绑定地址"),
+    port: int = typer.Option(None, "--port", "-p", help="绑定端口"),
 ):
-    """Start the CrewCraft gateway server."""
+    """启动 CrewCraft 网关服务器。"""
     host = host or config.gateway_host
     port = port or config.gateway_port
     typer.echo(f"Starting CrewCraft Gateway on http://{host}:{port}")
@@ -321,14 +321,14 @@ def gateway_start(
     start_gateway(host=host, port=port)
 
 
-# ── Tool commands ────────────────────────────────────────────────────────
+# ── 工具命令 ──────────────────────────────────────────────────────────────
 
-tool_app = typer.Typer(help="Manage tools", no_args_is_help=True)
+tool_app = typer.Typer(help="管理工具", no_args_is_help=True)
 
 
 @tool_app.command("list")
 def tool_list():
-    """List all available tools that can be assigned to agents."""
+    """列出所有可分配给 Agent 的可用工具。"""
     try:
         resp = httpx.get(f"{GATEWAY_URL}/api/tools")
         resp.raise_for_status()
@@ -345,12 +345,12 @@ def tool_list():
             typer.echo(f"  {'':18} {t['description'][:80]}")
             typer.echo()
     except httpx.HTTPError:
-        # Gateway not available or outdated — fallback to local
+        # 网关不可用或版本过旧 — 回退到本地列表
         _tool_list_local()
 
 
 def _tool_list_local():
-    """List tools locally without gateway."""
+    """在本地列出工具，无需网关。"""
     from app.agent.tools import registry
     tools = registry.list_all()
     typer.echo(f"\nAvailable tools ({len(tools)}):\n")

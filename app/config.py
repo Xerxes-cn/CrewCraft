@@ -1,9 +1,9 @@
-"""Centralized configuration — loaded once at import time.
+"""集中式配置 — 导入时一次性加载。
 
-Values are read from environment (with .env support) and cached as plain
-attributes so lookups are O(1) without repeated os.getenv calls.
+配置值从环境变量读取（支持 .env 文件），并缓存为普通属性，
+使查找操作为 O(1)，无需重复调用 os.getenv。
 
-Usage:
+用法：
     from app.config import config
     print(config.gateway_port)
 """
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class Config:
-    """Application configuration — reads env vars once, caches everything."""
+    """应用配置 — 一次性读取环境变量并全部缓存。"""
 
     def __init__(self):
         self._load_dotenv()
@@ -40,12 +40,12 @@ class Config:
 
     def _cache_values(self):
         get = os.getenv
-        # Data
+        # 数据目录
         self.data_dir = Path(get("CREWCRAFT_DATA_DIR", "data"))
-        # Gateway REST
+        # 网关 REST
         self.gateway_host = get("CREWCRAFT_GATEWAY_HOST", "127.0.0.1")
         self.gateway_port = int(get("CREWCRAFT_GATEWAY_PORT", "8000"))
-        # Gateway WebSocket
+        # 网关 WebSocket
         self.ws_host = get("CREWCRAFT_WS_HOST", "127.0.0.1")
         self.ws_port = int(get("CREWCRAFT_WS_PORT", "8765"))
         self.ws_url = f"ws://{self.ws_host}:{self.ws_port}"
@@ -54,10 +54,10 @@ class Config:
         self.agent_port_start = int(get("CREWCRAFT_AGENT_PORT_START", "9001"))
         self.agent_idle_timeout = int(get("CREWCRAFT_AGENT_IDLE_TIMEOUT", "300"))
         self.agent_heartbeat_interval = int(get("CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "15"))
-        # Logging
+        # 日志
         self.log_level = get("CREWCRAFT_LOG_LEVEL", "INFO")
 
-    # ── Print summary ────────────────────────────────────────────────
+    # ── Print summary ─────────────────────────────────────────────────
 
     def _print_summary(self):
         logger.info("Configuration loaded:")
@@ -70,5 +70,5 @@ class Config:
         logger.info("  log_level               = %s", self.log_level)
 
 
-# Singleton — created once at import, values cached forever
+# 单例 — 导入时创建一次，值永久缓存
 config = Config()

@@ -1,4 +1,4 @@
-"""Task creation and status API routes."""
+"""任务创建和状态查询 API 路由。"""
 
 import logging
 
@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
-# ── Request/Response schemas ──────────────────────────────────────────
+# ── 请求/响应 Schema ──────────────────────────────────────────────────
 
 class TaskCreate(BaseModel):
-    agent_name: str = ""  # optional — omit for orchestrator auto-assignment
+    agent_name: str = ""  # 可选 — 省略则由编排器自动分配
     content: str
 
 
@@ -30,7 +30,7 @@ class TaskResponse(BaseModel):
 
 
 async def _ensure_agent_online(agent_name: str):
-    """Ensure an agent is running and connected."""
+    """确保一个 Agent 正在运行并已连接。"""
     if not agent_manager.is_online(agent_name):
         await agent_manager.start_agent(agent_name)
         import asyncio
@@ -41,13 +41,13 @@ async def _ensure_agent_online(agent_name: str):
         raise HTTPException(status_code=500, detail=f"Agent '{agent_name}' did not connect in time")
 
 
-# ── Routes ────────────────────────────────────────────────────────────
+# ── 路由 ────────────────────────────────────────────────────────────────
 
 @router.post("", status_code=202)
 async def create_task(body: TaskCreate):
-    """Create a new task. Without agent_name, the orchestrator auto-assigns it."""
+    """创建新任务。不带 agent_name 时，编排器自动分配。"""
     if body.agent_name:
-        # ── Direct dispatch ──────────────────────────────────────────
+        # ── 直接分派 ──────────────────────────────────────────────────
         config = agent_manager.load_config(body.agent_name)
         if not config:
             raise HTTPException(status_code=404, detail=f"Agent '{body.agent_name}' not found")
@@ -67,7 +67,7 @@ async def create_task(body: TaskCreate):
             status=info["status"],
         )
     else:
-        # ── Orchestrator auto-assignment ─────────────────────────────
+        # ── 编排器自动分配 ───────────────────────────────────────────
         from app.gateway.orchestrator import get_orchestrator
         orch = get_orchestrator(agent_manager, ws_manager)
         result = await orch.handle_task(body.content)
@@ -91,7 +91,7 @@ async def create_task(body: TaskCreate):
 
 @router.get("/{task_id}")
 async def get_task_status(task_id: str):
-    """Get the status of a task."""
+    """获取任务状态。"""
     result = ws_manager.get_task_result(task_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
@@ -107,7 +107,7 @@ async def get_task_status(task_id: str):
 
 @router.get("")
 async def list_tasks():
-    """List all task IDs and their statuses."""
+    """列出所有任务 ID 及其状态。"""
     tasks = []
     for task_id in ws_manager.all_task_ids():
         result = ws_manager.get_task_result(task_id)

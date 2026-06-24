@@ -1,9 +1,9 @@
-"""Interactive REPL with slash-command interface.
+"""交互式 REPL，支持斜杠命令界面。
 
-Usage:
-    crewcraft          # enters interactive mode
-    crewcraft> /help   # show commands
-    crewcraft> 帮我...  # defaults to task orchestration
+用法：
+    crewcraft          # 进入交互模式
+    crewcraft> /help   # 显示命令列表
+    crewcraft> 帮我...  # 默认为任务编排
 """
 
 import shlex
@@ -16,7 +16,7 @@ from app.config import config
 
 GATEWAY_URL = f"http://{config.gateway_host}:{config.gateway_port}"
 
-# ── Help text ──────────────────────────────────────────────────────────
+# ── 帮助文本 ────────────────────────────────────────────────────────────
 
 HELP = """
 CrewCraft Interactive Mode — type a command or just describe your task.
@@ -50,11 +50,11 @@ CrewCraft Interactive Mode — type a command or just describe your task.
 
 COMMANDS = sorted(["/agent", "/task", "/session", "/tool", "/help", "/exit"])
 
-# ── Command handlers ────────────────────────────────────────────────────
+# ── 命令处理器 ──────────────────────────────────────────────────────────
 
 
 def _api(method: str, path: str, **kwargs) -> dict | list | None:
-    """Make an HTTP request to the gateway."""
+    """向网关发送 HTTP 请求。"""
     url = f"{GATEWAY_URL}{path}"
     try:
         resp = getattr(httpx, method)(url, **kwargs)
@@ -74,8 +74,8 @@ def _api(method: str, path: str, **kwargs) -> dict | list | None:
 
 
 def _parse_args(args_str: str) -> tuple[dict, str]:
-    """Parse key=value and --flag value style arguments.
-    Returns (flags_dict, remaining_text).
+    """解析 key=value 和 --flag value 风格的参数。
+    返回 (flags_dict, remaining_text)。
     """
     flags = {}
     remaining = []
@@ -97,10 +97,10 @@ def _parse_args(args_str: str) -> tuple[dict, str]:
     return flags, " ".join(remaining)
 
 
-# ── Agent ────────────────────────────────────────────────────────────
+# ── Agent ─────────────────────────────────────────────────────────────────
 
 def cmd_agent_create(args_str: str):
-    """Handle /agent create."""
+    """处理 /agent create。"""
     flags, rest = _parse_args(args_str)
     name = flags.get("name") or (rest.split()[0] if rest else "")
     model = flags.get("model", "deepseek:chat")
@@ -182,10 +182,10 @@ AGENT_CMDS = {
 }
 
 
-# ── Task ─────────────────────────────────────────────────────────────
+# ── Task ──────────────────────────────────────────────────────────────────
 
 def _poll_task(task_id: str):
-    """Poll task status until completion."""
+    """轮询任务状态直到完成。"""
     dots = 0
     while True:
         try:
@@ -280,7 +280,7 @@ TASK_CMDS = {
 }
 
 
-# ── Session ──────────────────────────────────────────────────────────
+# ── Session ───────────────────────────────────────────────────────────────
 
 def cmd_session_list(args_str: str):
     flags, _ = _parse_args(args_str)
@@ -319,7 +319,7 @@ SESSION_CMDS = {
 }
 
 
-# ── Tool ────────────────────────────────────────────────────────────
+# ── Tool ──────────────────────────────────────────────────────────────────
 
 def cmd_tool_list(args_str: str):
     try:
@@ -334,13 +334,13 @@ def cmd_tool_list(args_str: str):
         pass
 
 
-# ── Interactive help ────────────────────────────────────────────────
+# ── 交互式帮助 ────────────────────────────────────────────────────────────
 
 def _print_help(_=None):
     print(HELP)
 
 
-# ── Command router ──────────────────────────────────────────────────
+# ── 命令路由 ──────────────────────────────────────────────────────────────
 
 ROUTER = {
     "agent": AGENT_CMDS,
@@ -353,12 +353,12 @@ ROUTER = {
 
 
 def _dispatch(cmd_line: str):
-    """Dispatch a slash command to the appropriate handler."""
+    """将斜杠命令分发到相应的处理器。"""
     parts = shlex.split(cmd_line)
     if not parts:
         return
 
-    # Find the handler
+    # 查找处理器
     group = parts[0]
     if group in ("exit", "quit"):
         sys.exit(0)
@@ -389,10 +389,10 @@ def _dispatch(cmd_line: str):
         print(f"  Internal error: unknown handler type for {group}")
 
 
-# ── REPL loop ───────────────────────────────────────────────────────
+# ── REPL 循环 ─────────────────────────────────────────────────────────────
 
 def _prefill_input(prompt: str) -> str:
-    """Read input with optional readline prefill support."""
+    """读取输入，支持可选的 readline 预填支持。"""
     try:
         import readline
         return input(prompt)
@@ -401,7 +401,7 @@ def _prefill_input(prompt: str) -> str:
 
 
 def repl():
-    """Enter interactive REPL mode."""
+    """进入交互式 REPL 模式。"""
     print("CrewCraft Interactive")
     print(f"Gateway: {GATEWAY_URL}")
     print("(start gateway first with: crewcraft gateway start)")
@@ -424,7 +424,7 @@ def repl():
         if raw.startswith("/"):
             _dispatch(raw[1:])
         else:
-            # Default: treat as task for orchestrator
+            # 默认：作为任务交给编排器处理
             cmd_task_run(raw)
 
 
