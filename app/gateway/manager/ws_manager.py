@@ -26,16 +26,13 @@ class WSManager:
     """管理来自 Agent 进程的 WebSocket 连接。"""
 
     def __init__(self):
-        # agent_name → ServerConnection
         self._connections: dict[str, ServerConnection] = {}
-        # agent_name → heartbeat task
         self._heartbeats: dict[str, asyncio.Task] = {}
-        # task_id → asyncio.Future（用于等待任务结果）
         self._pending_tasks: dict[str, asyncio.Future] = {}
-        # agent_name → 上次心跳时间
         self._last_beat: dict[str, float] = {}
-        # 服务器实例
         self._server = None
+        # 协作会话跟踪 {session_id: {round, chain, started_at, last_activity, seen_contents}}
+        self._collab_sessions: dict[str, dict] = {}
 
     @property
     def active_agents(self) -> list[str]:
@@ -120,6 +117,12 @@ class WSManager:
                                 # 进度更新 — 存储以供状态查询
                                 future._result = msg
 
+                elif msg_type == "agent_message":
+                    await self._relay_message(agent_name, msg)
+
+                elif msg_type == "agent_broadcast":
+                    await self._broadcast_message(agent_name, msg)
+
                 elif msg_type == "idle_shutdown":
                     logger.info(f"Agent {agent_name} reports idle shutdown")
                     break
@@ -133,6 +136,101 @@ class WSManager:
         finally:
             if agent_name:
                 self._unregister(agent_name)
+
+    # ── Agent 间消息转发 ──────────────────────────────────────────────
+
+    async def _relay_message(self, from_agent: str, msg: dict):
+        """转发 Agent 间点对点消息，带监督检查。"""
+        to_agent = msg.get("to", "")
+        sid = msg.get("session_id", "")
+        content = msg.get("content", "")
+
+        if to_agent not in self._connections:
+            await self._connections[from_agent].send(json.dumps({
+                "type": "agent_message", "from": to_agent, "session_id": sid,
+                "error": f"Agent '{to_agent}' 不在线",
+            }))
+            return
+
+        # 监督检查
+        check = self._check_collab(sid, from_agent, to_agent, content)
+        if check:
+            await self._connections[from_agent].send(json.dumps(check))
+            return
+
+        logger.info(f"Agent 消息: {from_agent} → {to_agent} [{sid[:8]}]")
+        await self._connections[to_agent].send(json.dumps({
+            "type": "agent_message",
+            "from": from_agent,
+            "to": to_agent,
+            "session_id": sid,
+            "content": content,
+            "context": msg.get("context", {}),
+        }))
+
+    async def _broadcast_message(self, from_agent: str, msg: dict):
+        """广播消息给所有其他在线 Agent。"""
+        content = msg.get("content", "")
+        sid = msg.get("session_id", str(uuid.uuid4()))
+        logger.info(f"Agent 广播: {from_agent} → {len(self._connections)-1} 个 Agent")
+
+        payload = json.dumps({
+            "type": "agent_broadcast",
+            "from": from_agent,
+            "session_id": sid,
+            "content": content,
+        })
+        for name, ws in self._connections.items():
+            if name != from_agent:
+                try:
+                    await ws.send(payload)
+                except Exception:
+                    pass
+
+    # ── 协作监督 ─────────────────────────────────────────────────────
+
+    def _check_collab(self, sid: str, from_agent: str, to_agent: str, content: str) -> dict | None:
+        """检查协作是否越界。返回 None 表示放行，返回 dict 表示拦截。"""
+        from app.config import config
+
+        if not sid:
+            sid = str(uuid.uuid4())
+
+        now = loop_time()
+        if sid not in self._collab_sessions:
+            self._collab_sessions[sid] = {
+                "round": 0, "chain": [from_agent], "started_at": now,
+                "last_activity": now, "seen_contents": set(),
+            }
+
+        sess = self._collab_sessions[sid]
+        sess["round"] += 1
+        sess["last_activity"] = now
+        if to_agent not in sess["chain"]:
+            sess["chain"].append(to_agent)
+
+        # 超时
+        if now - sess["started_at"] > config.collab_timeout:
+            return {"type": "supervisor", "action": "halt",
+                    "reason": f"协作超时 ({config.collab_timeout}s)", "session_id": sid}
+
+        # 轮次上限
+        if sess["round"] > config.collab_max_rounds:
+            return {"type": "supervisor", "action": "halt",
+                    "reason": f"达到最大轮次 ({config.collab_max_rounds})", "session_id": sid}
+
+        # 深度上限
+        if len(sess["chain"]) > config.collab_max_depth:
+            return {"type": "supervisor", "action": "halt",
+                    "reason": f"链条过深 ({len(sess['chain'])} > {config.collab_max_depth})", "session_id": sid}
+
+        # 重复检测
+        content_hash = hash(content)
+        if content_hash in sess["seen_contents"]:
+            logger.warning(f"协作重复消息: {from_agent} → {to_agent}")
+        sess["seen_contents"].add(content_hash)
+
+        return None
 
     def _unregister(self, name: str):
         """清理 Agent 连接。"""
