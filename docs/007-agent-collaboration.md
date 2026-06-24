@@ -82,11 +82,57 @@ Gateway 在现有 WebSocket 协议上增加消息转发。
 }
 ```
 
+### 监督机制
+
+Gateway 的 Orchestrator 作为监督者，防止子 Agent 通信陷入死循环：
+
+```
+Agent A ←──→ Agent B
+      ↘     ↙
+     Orchestrator (监督)
+```
+
+**防护规则：**
+
+| 规则 | 默认值 | 说明 |
+|------|--------|------|
+| 最大轮次 | 10 | 单个会话中 Agent 间消息往返次数上限 |
+| 最大深度 | 3 | Agent A→B→C 链条深度，超过则截断 |
+| 重复检测 | 开启 | 相同 content 重复发送则警告 |
+| 超时 | 60s | 协作链条无进展则强制终止 |
+
+**监督动作：**
+
+```json
+// Orchestrator 检测到异常 → 发 supervisor 消息终止协作
+{
+  "type": "supervisor",
+  "action": "halt",
+  "reason": "达到最大轮次上限 (10 轮)",
+  "session_id": "uuid"
+}
+```
+
+**跟踪数据结构：**
+
+```python
+# ws_manager 中维护每个协作会话的跟踪信息
+_collab_sessions = {
+    "session_id": {
+        "round": 3,           # 当前轮次
+        "chain": ["A","B"],   # 参与方链条
+        "started_at": 12345,  # 开始时间
+        "last_activity": 12350,  # 最后活动时间
+    }
+}
+```
+
 ### 变更范围
 
-- `ws_manager.py`：新增 `agent_message` 和 `agent_broadcast` 消息处理
-- `agent/server.py`：任务执行中可调用 `send_to_agent()` 向其他 Agent 发消息，接收 `agent_message` 并返回结果
-- 协议新增 2 种消息类型
+- `ws_manager.py`：新增 `agent_message`、`agent_broadcast` 处理 + 监督跟踪
+- `orchestrator.py`：新增协作监控协程，超时/超轮次自动终止
+- `agent/server.py`：支持发送/接收 Agent 间消息
+- 协议新增 3 种消息类型：`agent_message`、`agent_broadcast`、`supervisor`
 
 ### 协作场景
 
