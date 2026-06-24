@@ -3,13 +3,16 @@
 Communicates with the Gateway via REST API.
 """
 
+import os
 import sys
 import time
 
 import httpx
 import typer
 
-GATEWAY_URL = "http://127.0.0.1:8000"
+from app.config import config
+
+GATEWAY_URL = os.getenv("CREWCRAFT_GATEWAY_URL", f"http://{config.gateway_host}:{config.gateway_port}")
 
 # ── Agent commands ─────────────────────────────────────────────────────
 
@@ -286,12 +289,14 @@ gateway_app = typer.Typer(help="Gateway server", no_args_is_help=True)
 
 @gateway_app.command("start")
 def gateway_start(
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Bind address"),
-    port: int = typer.Option(8000, "--port", "-p", help="Bind port"),
+    host: str = typer.Option(None, "--host", "-h", help="Bind address"),
+    port: int = typer.Option(None, "--port", "-p", help="Bind port"),
 ):
     """Start the CrewCraft gateway server."""
+    host = host or config.gateway_host
+    port = port or config.gateway_port
     typer.echo(f"Starting CrewCraft Gateway on http://{host}:{port}")
-    typer.echo(f"Agent WebSocket server on ws://127.0.0.1:8765")
+    typer.echo(f"Agent WebSocket server on {config.ws_url}")
 
     from app.gateway.main import start_gateway
     start_gateway(host=host, port=port)
