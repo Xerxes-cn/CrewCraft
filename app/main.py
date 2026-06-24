@@ -1,9 +1,12 @@
 """CrewCraft - Multi-agent collaboration platform.
 
 Usage:
-    crewcraft gateway start     # Start the gateway server
-    crewcraft agent ...         # CLI commands (see crewcraft --help)
+    crewcraft                  # Interactive REPL (default)
+    crewcraft gateway start    # Start the gateway server
+    crewcraft -V               # Show version
 """
+
+import sys
 
 import typer
 
@@ -12,7 +15,7 @@ from . import __version__
 cli = typer.Typer(
     name="crewcraft",
     help="Multi-agent collaboration platform",
-    no_args_is_help=True,
+    no_args_is_help=False,
 )
 
 
@@ -23,10 +26,13 @@ def main(
     if version:
         print(f"CrewCraft v{__version__}")
         raise typer.Exit()
+    # No subcommand → enter REPL
+    from .cli.repl import repl
+    repl()
 
 
 def register_commands():
-    """Register all subcommands."""
+    """Register all subcommands (kept for backward compatibility)."""
     from .cli.main import agent_app, task_app, session_app, gateway_app, tool_app
 
     cli.add_typer(agent_app, name="agent", help="Manage agents")
