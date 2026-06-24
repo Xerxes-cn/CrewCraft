@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 # ── Request/Response schemas ──────────────────────────────────────────
 
 class TaskCreate(BaseModel):
-    agent_name: str
+    agent_name: str = ""  # optional — omit for orchestrator auto-assignment
     content: str
 
 
@@ -26,45 +26,67 @@ class TaskResponse(BaseModel):
     status: str  # pending / running / completed / failed
     result: str = ""
     error: str = ""
+    plan: list = []
+
+
+async def _ensure_agent_online(agent_name: str):
+    """Ensure an agent is running and connected."""
+    if not agent_manager.is_online(agent_name):
+        await agent_manager.start_agent(agent_name)
+        import asyncio
+        for _ in range(20):
+            if agent_manager.is_online(agent_name):
+                return
+            await asyncio.sleep(0.5)
+        raise HTTPException(status_code=500, detail=f"Agent '{agent_name}' did not connect in time")
 
 
 # ── Routes ────────────────────────────────────────────────────────────
 
 @router.post("", status_code=202)
 async def create_task(body: TaskCreate):
-    """Create a new task and dispatch to the specified agent."""
-    config = agent_manager.load_config(body.agent_name)
-    if not config:
-        raise HTTPException(status_code=404, detail=f"Agent '{body.agent_name}' not found")
+    """Create a new task. Without agent_name, the orchestrator auto-assigns it."""
+    if body.agent_name:
+        # ── Direct dispatch ──────────────────────────────────────────
+        config = agent_manager.load_config(body.agent_name)
+        if not config:
+            raise HTTPException(status_code=404, detail=f"Agent '{body.agent_name}' not found")
 
-    # Ensure agent is running
-    if not agent_manager.is_online(body.agent_name):
-        port = await agent_manager.start_agent(body.agent_name)
-        if port is None:
-            raise HTTPException(status_code=500, detail=f"Failed to start agent '{body.agent_name}'")
+        await _ensure_agent_online(body.agent_name)
 
-        # Wait for agent to connect
-        import asyncio
-        for _ in range(20):  # 10 seconds max
-            if agent_manager.is_online(body.agent_name):
-                break
-            await asyncio.sleep(0.5)
-        else:
-            raise HTTPException(status_code=500, detail=f"Agent '{body.agent_name}' did not connect in time")
+        try:
+            info = await ws_manager.dispatch_task(body.agent_name, body.content)
+        except RuntimeError as e:
+            raise HTTPException(status_code=503, detail=str(e))
 
-    # Dispatch task via WebSocket
-    try:
-        info = await ws_manager.dispatch_task(body.agent_name, body.content)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        logger.info(f"Task {info['task_id']} dispatched to {body.agent_name}")
+        return TaskResponse(
+            task_id=info["task_id"],
+            session_id=info["session_id"],
+            agent_name=body.agent_name,
+            status=info["status"],
+        )
+    else:
+        # ── Orchestrator auto-assignment ─────────────────────────────
+        from app.gateway.orchestrator import get_orchestrator
+        orch = get_orchestrator(agent_manager, ws_manager)
+        result = await orch.handle_task(body.content)
 
-    logger.info(f"Task {info['task_id']} dispatched to {body.agent_name}")
-    return TaskResponse(
-        task_id=info["task_id"],
-        session_id=info["session_id"],
-        agent_name=body.agent_name,
-        status=info["status"],
-    )
+        if result["status"] == "failed":
+            return TaskResponse(
+                task_id=result["task_id"],
+                session_id=result["session_id"],
+                status="failed",
+                error=result.get("error", "Orchestration failed"),
+            )
+
+        logger.info(f"Task {result['task_id']} orchestrated → {len(result.get('plan', []))} sub-tasks")
+        return TaskResponse(
+            task_id=result["task_id"],
+            session_id=result["session_id"],
+            status="pending",
+            plan=result.get("plan", []),
+        )
 
 
 @router.get("/{task_id}")

@@ -22,26 +22,44 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    """Agent configuration loaded from JSON file."""
+    """Agent configuration loaded from JSON file.
+
+    system_prompt is loaded from data/agents/{name}.prompt.md at runtime.
+    tools are NOT stored — all agents get all available tools by default.
+    Custom tools can be placed in data/agents/{name}/skills/.
+    """
 
     name: str
     model: str
-    system_prompt: str = ""
-    tools: list[str] = None
+    description: str = ""
     port: int = 0
     idle_timeout: int = 300
     created_at: str = ""
 
-    def __post_init__(self):
-        if self.tools is None:
-            self.tools = []
+    @property
+    def system_prompt(self) -> str:
+        """Load system prompt from .prompt.md file."""
+        return self.load_prompt_file()
+
+    def load_prompt_file(self, data_dir: Path | None = None) -> str:
+        from app.agent.prompt_generator import load_prompt
+        prompt = load_prompt(self.name, data_dir)
+        if prompt:
+            return prompt
+        # Fallback: return description if prompt not yet generated
+        return self.description or ""
+
+    @property
+    def tools(self) -> list[str]:
+        """All agents get all built-in tools + any agent-specific skills."""
+        from app.agent.tools import registry
+        return registry.list_names()
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
             "model": self.model,
-            "system_prompt": self.system_prompt,
-            "tools": self.tools,
+            "description": self.description,
             "port": self.port,
             "idle_timeout": self.idle_timeout,
             "created_at": self.created_at,
@@ -52,8 +70,7 @@ class AgentConfig:
         return cls(
             name=data["name"],
             model=data["model"],
-            system_prompt=data.get("system_prompt", ""),
-            tools=data.get("tools", []),
+            description=data.get("description", data.get("system_prompt", "")),
             port=data.get("port", 0),
             idle_timeout=data.get("idle_timeout", 300),
             created_at=data.get("created_at", ""),
