@@ -60,15 +60,33 @@ class WSManager:
                 return
 
             agent_name = msg["name"]
-            logger.info(f"Agent {agent_name} connected")
+            logger.info(f"Agent {agent_name} connecting...")
 
-            # Register the connection
+            # Verify agent config exists
+            config = _am.load_config(agent_name)
+            if not config:
+                await ws.send(json.dumps({
+                    "type": "error",
+                    "message": f"Agent '{agent_name}' not found in registry. Create it first with: crewcraft agent create --name {agent_name} ...",
+                }))
+                logger.warning(f"Rejected unregistered agent: {agent_name}")
+                return
+
+            # Close previous connection if exists
             old = self._connections.get(agent_name)
             if old is not None:
                 try:
                     await old.close()
                 except Exception:
                     pass
+
+            # Send registration confirmation + full config
+            await ws.send(json.dumps({
+                "type": "registered",
+                "name": agent_name,
+                "config": config.to_dict(),
+            }))
+            logger.info(f"Agent {agent_name} registered (model={config.model})")
 
             self._connections[agent_name] = ws
             self._last_beat[agent_name] = loop_time()

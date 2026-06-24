@@ -36,17 +36,10 @@ GATEWAY_WS = os.getenv("CREWCRAFT_GATEWAY_WS", "ws://127.0.0.1:8765")
 IDLE_TIMEOUT = 300  # seconds, can be overridden from agent config
 TOOL_RESULT_TRUNCATE = 100  # characters to keep in sessions.json
 
-AGENT_CONFIG_PATH = DATA_DIR / "agents" / f"{AGENT_NAME}.json"
 SESSION_DIR = DATA_DIR / "sessions" / AGENT_NAME
 
 
 # ── Session persistence ────────────────────────────────────────────────
-
-def load_agent_config() -> dict:
-    """Load agent configuration from JSON file."""
-    if AGENT_CONFIG_PATH.exists():
-        return json.loads(AGENT_CONFIG_PATH.read_text())
-    return {}
 
 
 def save_message(session_id: str, role: str, content: str, tool_name: str = ""):
@@ -100,14 +93,15 @@ def save_tool_log(session_id: str, tool_name: str, input_data: dict, output_data
 
 # ── Agent runner (wraps deepagents) ────────────────────────────────────
 
-async def run_task(session_id: str, content: str, ws) -> str:
+async def run_task(session_id: str, content: str, ws, config: dict) -> str:
     """Run a task using deepagents and stream results via WebSocket.
 
-    This is a simplified implementation that uses deepagents'
-    create_deep_agent when available, falling back to a basic
-    LLM loop for development/testing.
+    Args:
+        session_id: Unique session identifier.
+        content: User's message content.
+        ws: WebSocket connection to gateway.
+        config: Agent configuration received from gateway (model, system_prompt, tools).
     """
-    config = load_agent_config()
     model = config.get("model", "openai:gpt-4o")
     system_prompt = config.get("system_prompt", "")
     tools_list = config.get("tools", [])
@@ -171,7 +165,7 @@ async def run_task(session_id: str, content: str, ws) -> str:
 
     except ImportError:
         logger.warning("deepagents not installed, using fallback")
-        return await _fallback_run(session_id, content, model, system_prompt, ws)
+        return await _fallback_run(session_id, content, model, system_prompt, ws, config)
 
 
 def _build_tools(tools_list: list[str]) -> list:
@@ -200,10 +194,13 @@ _current_task_id = ""
 
 
 async def _fallback_run(
-    session_id: str, content: str, model: str, system_prompt: str, ws
+    session_id: str, content: str, model: str, system_prompt: str, ws, config: dict
 ) -> str:
     """Fallback when deepagents is not available: simple echo/reflection."""
+    tools = config.get("tools", [])
     response = f"[Fallback mode] Agent {AGENT_NAME} received: {content}"
+    if tools:
+        response += f"\n[Available tools: {', '.join(tools)}]"
     save_message(session_id, "assistant", response)
     return response
 
@@ -211,26 +208,43 @@ async def _fallback_run(
 # ── WebSocket client ───────────────────────────────────────────────────
 
 async def agent_loop():
-    """Main agent loop: connect to gateway, handle messages."""
+    """Main agent loop: connect to gateway, bidirectional register, handle messages."""
     global _current_task_id
 
-    config = load_agent_config()
-    idle_timeout = config.get("idle_timeout", IDLE_TIMEOUT)
+    # Agent starts with empty config — gateway will provide it on registration
+    config: dict = {}
+    idle_timeout = IDLE_TIMEOUT
     last_task_time = asyncio.get_event_loop().time()
 
     logger.info(f"Agent {AGENT_NAME} connecting to gateway at {GATEWAY_WS}")
 
     async for ws in websockets.connect(GATEWAY_WS):
         try:
-            # Register with gateway
+            # ── Phase 1: Bidirectional registration ──────────────────────
             await ws.send(json.dumps({
                 "type": "register",
                 "name": AGENT_NAME,
-                "port": AGENT_PORT,
             }))
-            logger.info(f"Agent {AGENT_NAME} registered")
+            logger.info(f"Agent {AGENT_NAME} sent registration request")
 
-            # Main message loop
+            # Wait for gateway to confirm and send config
+            raw = await asyncio.wait_for(ws.recv(), timeout=10)
+            msg = json.loads(raw)
+
+            if msg.get("type") == "error":
+                logger.error(f"Registration rejected: {msg.get('message')}")
+                return  # Exit — agent not in registry
+
+            if msg.get("type") != "registered":
+                logger.error(f"Expected 'registered', got '{msg.get('type')}'")
+                return
+
+            config = msg.get("config", {})
+            idle_timeout = config.get("idle_timeout", IDLE_TIMEOUT)
+            logger.info(f"Agent {AGENT_NAME} registered (model={config.get('model')}, "
+                        f"tools={config.get('tools')}, idle_timeout={idle_timeout}s)")
+
+            # ── Phase 2: Main message loop ───────────────────────────────
             async for raw in ws:
                 try:
                     msg = json.loads(raw)
@@ -259,7 +273,7 @@ async def agent_loop():
                     }))
 
                     try:
-                        result = await run_task(session_id, content, ws)
+                        result = await run_task(session_id, content, ws, config)
 
                         # Send completion
                         await ws.send(json.dumps({
