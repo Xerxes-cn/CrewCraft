@@ -13,8 +13,18 @@ dependencies = [
     "uuid6>=2024.0.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project.scripts]
-crewcraft = "main:cli"
+crewcraft = "app.main:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv]
+package = true
 
 [dependency-groups]
 dev = [

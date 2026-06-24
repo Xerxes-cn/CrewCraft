@@ -7,7 +7,7 @@ Usage:
 
 import typer
 
-from app import __version__
+from . import __version__
 
 cli = typer.Typer(
     name="crewcraft",
@@ -27,7 +27,7 @@ def main(
 
 def register_commands():
     """Register all subcommands."""
-    from app.cli.main import agent_app, task_app, session_app, gateway_app
+    from .cli.main import agent_app, task_app, session_app, gateway_app
 
     cli.add_typer(agent_app, name="agent", help="Manage agents")
     cli.add_typer(task_app, name="task", help="Manage tasks")
