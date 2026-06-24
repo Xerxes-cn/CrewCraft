@@ -50,6 +50,7 @@ class Config:
         self.ws_port = int(get("CREWCRAFT_WS_PORT", "8765"))
         self.ws_url = f"ws://{self.ws_host}:{self.ws_port}"
         # Agent
+        self.agent_deploy_mode = get("CREWCRAFT_AGENT_DEPLOY_MODE", "subprocess")  # subprocess | docker
         self.agent_port_start = int(get("CREWCRAFT_AGENT_PORT_START", "9001"))
         self.agent_idle_timeout = int(get("CREWCRAFT_AGENT_IDLE_TIMEOUT", "300"))
         self.agent_heartbeat_interval = int(get("CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "15"))

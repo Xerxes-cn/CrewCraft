@@ -1,0 +1,21 @@
+# CrewCraft Agent Docker Image
+#
+# Build:
+#   docker build -f Dockerfile.agent -t crewcraft-agent .
+#
+# The Gateway spawns containers from this image when
+# CREWCRAFT_AGENT_DEPLOY_MODE=docker.
+
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+WORKDIR /app
+
+COPY pyproject.toml .
+RUN uv sync --no-dev
+
+COPY app/ app/
+
+ENV PYTHONPATH=/app
+ENV CREWCRAFT_DATA_DIR=/data
+
+CMD ["uv", "run", "python", "-m", "app.agent.server"]

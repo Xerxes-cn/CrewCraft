@@ -12,6 +12,7 @@ dependencies = [
     "deepagents>=0.6.0",
     "uuid6>=2024.0.0",
     "python-dotenv>=1.0.0",
+    "docker>=7.0",
 ]
 
 [build-system]

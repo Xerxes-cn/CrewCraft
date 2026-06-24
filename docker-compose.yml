@@ -1,0 +1,31 @@
+# CrewCraft — One-command deployment
+#
+#   docker compose up -d          # start all services
+#   crewcraft                     # in another terminal, interact
+#
+# Architecture:
+#   gateway (8000 REST + 8765 WS) ← agent (dynamically spawned)
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: crewcraft-gateway
+    ports:
+      - "${CREWCRAFT_GATEWAY_PORT:-8000}:8000"
+      - "${CREWCRAFT_WS_PORT:-8765}:8765"
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock  # Gateway spawns agent containers
+    environment:
+      - CREWCRAFT_DATA_DIR=/data
+      - CREWCRAFT_WS_HOST=0.0.0.0
+      - CREWCRAFT_AGENT_DEPLOY_MODE=docker
+      - CREWCRAFT_GATEWAY_WS=ws://gateway:${CREWCRAFT_WS_PORT:-8765}
+    restart: unless-stopped
+
+  # Agent containers are spawned dynamically by the Gateway.
+  # The gateway uses the crewcraft-agent image built from Dockerfile.agent.
+  # Build it first:
+  #   docker build -f Dockerfile.agent -t crewcraft-agent .

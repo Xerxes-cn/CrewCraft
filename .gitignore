@@ -4,7 +4,6 @@ __pycache__/
 dist/
 .venv/
 .uv/
-uv.lock
 data/
 .idea/
 .claude/
