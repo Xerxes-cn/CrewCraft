@@ -1,145 +1,155 @@
 # CrewCraft
 
-多 Agent 协作平台。Gateway 常驻服务管理 Agent 生命周期，CLI 通过 REST API 创建/管理 Agent 并下发任务。Agent 基于 [deepagents](https://github.com/langchain-ai/deepagents) 构建。
+多 Agent 协作平台。Gateway 常驻服务管理 Agent 生命周期，通过交互式 REPL 下发任务，内置 Orchestrator 自动编排。
 
 ## 架构
 
 ```
-CLI (Typer) ──REST──→ Gateway (FastAPI) ──WebSocket──→ Agent Process (deepagents)
-                           │
-                           ├── data/agents/{name}.json
-                           └── data/sessions/{name}/
-                               ├── sessions.json
-                               └── tool_logs.json
+┌──────────────────────────────────────────────────────┐
+│  CLI (REPL) ──REST──→ Gateway (FastAPI)              │
+│                         ├── Orchestrator (内置)       │
+│                         ├── WS Server (Agent 通信)    │
+│                         └── AgentManager (生命周期)   │
+│                              │                       │
+│                    ┌─────────┼─────────┐              │
+│                    ↓         ↓         ↓              │
+│              Agent A    Agent B    Agent C            │
+│              (容器/进程) (容器/进程) (容器/进程)       │
+│              deepagents deepagents deepagents         │
+│              :9001      :9002      :9003             │
+└──────────────────────────────────────────────────────┘
 ```
-
-- **Gateway**: FastAPI 常驻服务，REST API + 内部 WebSocket，管理 Agent 生命周期
-- **Agent**: 独立子进程，各自端口，按需启动，空闲自动退出
-- **CLI**: Typer 客户端，通过 HTTP 调用 Gateway API
 
 ## 快速开始
 
+### 本地开发
+
 ```bash
-# 安装依赖
+# 安装
 uv sync
 
-# 启动 Gateway
+# 启动 Gateway（终端 1）
 uv run crewcraft gateway start
 
-# 新开终端，创建 Agent
-uv run crewcraft agent create --name researcher --model deepseek:chat --prompt "你是一个研究助手"
-
-# 下发任务
-uv run crewcraft task run --agent researcher "帮我研究 LangGraph 最新版本"
-
-# 查看帮助
-uv run crewcraft --help
+# 交互式 REPL（终端 2）
+uv run crewcraft
+> /agent create researcher --desc "擅长搜索和整理技术资料"
+> 帮我研究 Python 3.13 新特性    # 自动编排，无需指定 agent
 ```
 
-## CLI 命令
-
-### Agent 管理
+### Docker 部署
 
 ```bash
-crewcraft agent create  --name <name> --model <model> [--prompt <prompt>] [--tools <t1,t2>]
-crewcraft agent list
-crewcraft agent inspect <name>
-crewcraft agent delete  <name>
+docker build -f Dockerfile.agent -t crewcraft-agent .
+docker compose up -d
+uv run crewcraft  # 交互
 ```
 
-### 任务管理
+## CLI
 
-```bash
-crewcraft task run     --agent <name> <content>
-crewcraft task status  <task_id>
-crewcraft task list
+```
+crewcraft                  # 进入交互 REPL（默认）
+crewcraft gateway start    # 启动 Gateway
+crewcraft -V               # 版本
 ```
 
-### 会话历史
+### REPL 斜杠命令
 
-```bash
-crewcraft session list  --agent <name>
-crewcraft session show  <session_id> --agent <name>
-```
+| 命令 | 说明 |
+|------|------|
+| `/agent create <name> --desc <...>` | 创建 Agent（自动生成 prompt） |
+| `/agent list` | 列出所有 Agent |
+| `/agent inspect <name>` | 查看 Agent 详情 |
+| `/agent delete <name>` | 删除 Agent |
+| `/agent generate-prompt <name>` | 重新生成 prompt |
+| `/task run <content>` | 创建任务（自动编排） |
+| `/task run <content> --agent <a>` | 指定 Agent 执行 |
+| `/task status <id>` | 任务状态 |
+| `/task list` | 任务列表 |
+| `/session list --agent <a>` | 会话列表 |
+| `/session show <id> --agent <a>` | 对话历史 |
+| `/tool list` | 可用工具 |
+| `/help` | 帮助 |
+| `/exit` | 退出（Ctrl+D） |
 
-### Gateway
+直接输入文字自动作为任务发给 Orchestrator 编排。
 
-```bash
-crewcraft gateway start [--host 127.0.0.1] [--port 8000]
-```
+## API
 
-## API 接口
-
-Gateway 默认监听 `http://127.0.0.1:8000`
-
-### Agent
+Gateway 监听 `http://127.0.0.1:8000`
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `POST` | `/api/agents` | 创建 Agent |
-| `GET` | `/api/agents` | 列出所有 Agent |
+| `GET` | `/api/agents` | Agent 列表 |
 | `GET` | `/api/agents/{name}` | Agent 详情 |
 | `DELETE` | `/api/agents/{name}` | 删除 Agent |
-
-### 任务
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/tasks` | 创建任务（异步返回 task_id） |
-| `GET` | `/api/tasks/{task_id}` | 查询任务状态 |
-| `GET` | `/api/tasks` | 列出所有任务 |
-
-### 会话历史
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
+| `POST` | `/api/agents/{name}/generate-prompt` | 重新生成 prompt |
+| `POST` | `/api/tasks` | 创建任务（`agent_name` 可选） |
+| `GET` | `/api/tasks/{task_id}` | 任务状态 |
+| `GET` | `/api/tasks` | 任务列表 |
 | `GET` | `/api/agents/{name}/sessions` | 会话列表 |
-| `GET` | `/api/agents/{name}/sessions/{session_id}` | 完整对话历史 |
-| `GET` | `/api/agents/{name}/sessions/{session_id}/tools` | Tool 调用日志 |
+| `GET` | `/api/agents/{name}/sessions/{id}` | 对话历史 |
+| `GET` | `/api/agents/{name}/sessions/{id}/tools` | Tool 日志 |
+| `GET` | `/api/tools` | 可用工具列表 |
 
 ## 数据存储
 
-纯文件系统，默认目录 `data/`（已加入 `.gitignore`）。
+纯文件系统，目录 `data/`（可配置，gitignore）：
 
 ```
 data/
 ├── agents/
-│   └── {name}.json          # Agent 配置（name, model, system_prompt, tools, port）
+│   ├── {name}.json           # Agent 配置（name, model, description, port）
+│   └── {name}.prompt.md      # 生成的 system prompt（可手动修改）
 └── sessions/
     └── {name}/
-        ├── sessions.json     # 完整对话历史（LLM messages 格式，tool 结果截断 100 字符）
-        └── tool_logs.json    # Tool 调用完整 input/output
+        ├── sessions.json      # 完整对话历史（LLM messages 格式）
+        └── tool_logs.json     # Tool 调用详情
 ```
-
-可通过环境变量 `CREWCRAFT_DATA_DIR` 自定义数据目录。
 
 ## 配置
 
+复制 `.env.example` 为 `.env` 自定义：
+
 | 环境变量 | 默认值 | 说明 |
 |----------|--------|------|
-| `CREWCRAFT_DATA_DIR` | `data` | 数据存储目录 |
-| `CREWCRAFT_GATEWAY_WS` | `ws://127.0.0.1:8765` | Gateway WebSocket 地址 |
-| `CREWCRAFT_AGENT_NAME` | - | Agent 进程的 name |
-| `CREWCRAFT_AGENT_PORT` | - | Agent 进程的端口 |
+| `CREWCRAFT_DATA_DIR` | `data` | 数据目录 |
+| `CREWCRAFT_GATEWAY_HOST` | `127.0.0.1` | REST 地址 |
+| `CREWCRAFT_GATEWAY_PORT` | `8000` | REST 端口 |
+| `CREWCRAFT_WS_HOST` | `127.0.0.1` | WS 地址 |
+| `CREWCRAFT_WS_PORT` | `8765` | WS 端口 |
+| `CREWCRAFT_AGENT_DEPLOY_MODE` | `subprocess` | subprocess / docker |
+| `CREWCRAFT_AGENT_PORT_START` | `9001` | Agent 起始端口 |
+| `CREWCRAFT_AGENT_IDLE_TIMEOUT` | `300` | 空闲超时(s) |
+| `CREWCRAFT_AGENT_HEARTBEAT_INTERVAL` | `15` | 心跳间隔(s) |
+| `CREWCRAFT_LOG_LEVEL` | `INFO` | 日志级别 |
 
-## 依赖
+## 内置工具
 
-- Python >= 3.11
-- [deepagents](https://github.com/langchain-ai/deepagents) — Agent 执行引擎
-- FastAPI + Uvicorn — Gateway HTTP 服务
-- websockets — Gateway ↔ Agent 双向通信
-- Typer + httpx — CLI 客户端
+Agent 默认可用 12 个工具：`web_search` `web_fetch` `shell_exec` `file_ops` `time_now` `calculator` `random_number` `text_stats` `json_tool` `base64` `hash` `uuid_gen`
+
+查看：`uv run crewcraft tool list`
+
+## 项目结构
+
+```
+CrewCraft/
+├── app/
+│   ├── gateway/          # Gateway 服务（FastAPI + WS + 生命周期管理）
+│   ├── agent/            # Agent 进程（deepagents + 工具注册表 + prompt 生成）
+│   ├── cli/              # CLI（Typer 子命令 + REPL）
+│   └── config.py         # 集中配置
+├── Dockerfile            # Gateway 镜像
+├── Dockerfile.agent      # Agent 运行时镜像
+├── docker-compose.yml    # 一键部署
+├── docs/                 # 设计文档
+└── pyproject.toml
+```
 
 ## 开发
 
 ```bash
-# 安装开发依赖
 uv sync --dev
-
-# 运行测试
-uv run pytest
+uv run crewcraft  # 交互模式
 ```
-
-## License
-
-MIT
