@@ -7,7 +7,6 @@ Usage:
 """
 
 import shlex
-import signal
 import sys
 import time
 
@@ -21,6 +20,9 @@ GATEWAY_URL = f"http://{config.gateway_host}:{config.gateway_port}"
 
 HELP = """
 CrewCraft Interactive Mode — type a command or just describe your task.
+
+  Start gateway first (in another terminal):
+    crewcraft gateway start
 
   Slash Commands:
     /agent create <name> --model <model> [--desc <text>]
@@ -39,8 +41,6 @@ CrewCraft Interactive Mode — type a command or just describe your task.
 
     /tool list
 
-    /gateway start [--host <h>] [--port <p>]
-
     /help     show this message
     /exit     quit (Ctrl+D also works)
 
@@ -48,10 +48,7 @@ CrewCraft Interactive Mode — type a command or just describe your task.
     crewcraft> 帮我研究 Python 3.13 的新特性
 """
 
-COMMANDS = sorted([
-    "/agent", "/task", "/session", "/tool", "/gateway",
-    "/help", "/exit",
-])
+COMMANDS = sorted(["/agent", "/task", "/session", "/tool", "/help", "/exit"])
 
 # ── Command handlers ────────────────────────────────────────────────────
 
@@ -337,31 +334,20 @@ def cmd_tool_list(args_str: str):
         pass
 
 
-# ── Gateway ─────────────────────────────────────────────────────────
+# ── Interactive help ────────────────────────────────────────────────
 
-def cmd_gateway_start(args_str: str):
-    flags, _ = _parse_args(args_str)
-    host = flags.get("host", config.gateway_host)
-    port = int(flags.get("port", config.gateway_port))
-
-    print(f"Starting CrewCraft Gateway on http://{host}:{port}")
-    print(f"Agent WebSocket server on {config.ws_url}")
-
-    from app.gateway.main import start_gateway
-    start_gateway(host=host, port=port)
+def _print_help(_=None):
+    print(HELP)
 
 
 # ── Command router ──────────────────────────────────────────────────
-
-GATEWAY_CMDS = {"start": cmd_gateway_start}
 
 ROUTER = {
     "agent": AGENT_CMDS,
     "task": TASK_CMDS,
     "session": SESSION_CMDS,
     "tool": {"list": cmd_tool_list},
-    "gateway": GATEWAY_CMDS,
-    "help": lambda _: print(HELP),
+    "help": _print_help,
     "exit": lambda _: sys.exit(0),
 }
 
@@ -418,7 +404,8 @@ def repl():
     """Enter interactive REPL mode."""
     print("CrewCraft Interactive")
     print(f"Gateway: {GATEWAY_URL}")
-    print('Type /help for commands, or just describe your task. Ctrl+D to exit.\n')
+    print("(start gateway first with: crewcraft gateway start)")
+    print("Type /help for commands, or just describe your task. Ctrl+D to exit.\n")
 
     while True:
         try:
