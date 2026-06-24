@@ -1,4 +1,4 @@
-"""Agent CRUD API routes."""
+"""Agent CRUD API 路由。"""
 
 import json
 import logging
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
 
-# ── Request/Response schemas ──────────────────────────────────────────
+# ── 请求/响应 Schema ──────────────────────────────────────────────────
 
 class AgentCreate(BaseModel):
     name: str
@@ -49,14 +49,14 @@ def _agent_to_response(config: AgentConfig) -> AgentResponse:
     )
 
 
-# ── Routes ────────────────────────────────────────────────────────────
+# ── 路由 ────────────────────────────────────────────────────────────────
 
 @router.post("", status_code=201)
 async def create_agent(body: AgentCreate):
-    """Create a new agent configuration.
+    """创建新的 Agent 配置。
 
-    Automatically generates system_prompt from description using LLM.
-    Saves prompt to data/agents/{name}.prompt.md for user customization.
+    使用 LLM 根据描述自动生成 system_prompt。
+    将提示词保存到 data/agents/{name}.prompt.md 供用户自定义。
     """
     if agent_manager.load_config(body.name):
         raise HTTPException(status_code=409, detail=f"Agent '{body.name}' already exists")
@@ -72,7 +72,7 @@ async def create_agent(body: AgentCreate):
     )
     agent_manager.save_config(config)
 
-    # Generate and save system prompt
+    # 生成并保存系统提示词
     if body.description:
         from app.agent.prompt_generator import generate_prompt, save_prompt
         prompt = generate_prompt(body.description, body.model)
@@ -85,14 +85,14 @@ async def create_agent(body: AgentCreate):
 
 @router.get("")
 async def list_agents():
-    """List all configured agents."""
+    """列出所有已配置的 Agent。"""
     configs = agent_manager.list_configs()
     return [_agent_to_response(c) for c in configs]
 
 
 @router.get("/{name}")
 async def get_agent(name: str):
-    """Get a single agent's configuration."""
+    """获取单个 Agent 的配置。"""
     config = agent_manager.load_config(name)
     if not config:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
@@ -105,7 +105,7 @@ class PromptRegenerate(BaseModel):
 
 @router.post("/{name}/generate-prompt")
 async def regenerate_prompt(name: str, body: PromptRegenerate):
-    """Regenerate the system prompt from a new description."""
+    """根据新描述重新生成系统提示词。"""
     config = agent_manager.load_config(name)
     if not config:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
@@ -114,7 +114,7 @@ async def regenerate_prompt(name: str, body: PromptRegenerate):
     prompt = generate_prompt(body.description, config.model)
     save_prompt(name, prompt)
 
-    # Update description in config
+    # 更新配置中的描述
     config.description = body.description
     agent_manager.save_config(config)
 
@@ -124,11 +124,11 @@ async def regenerate_prompt(name: str, body: PromptRegenerate):
 
 @router.delete("/{name}")
 async def delete_agent(name: str):
-    """Delete an agent and its configuration."""
+    """删除 Agent 及其配置。"""
     if not agent_manager.load_config(name):
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
 
-    # Stop if running
+    # 如果正在运行则停止
     await agent_manager.stop_agent(name)
 
     agent_manager.delete_config(name)
@@ -136,14 +136,14 @@ async def delete_agent(name: str):
     return {"deleted": name}
 
 
-# ── Session history routes ────────────────────────────────────────────
+# ── 会话历史路由 ──────────────────────────────────────────────────────
 
 SESSION_BASE = agent_manager.data_dir / "sessions"
 
 
 @router.get("/{name}/sessions")
 async def list_sessions(name: str):
-    """List all sessions for an agent."""
+    """列出某个 Agent 的所有会话。"""
     config = agent_manager.load_config(name)
     if not config:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
@@ -154,7 +154,7 @@ async def list_sessions(name: str):
 
     data = json.loads(session_file.read_text())
 
-    # Return session summaries grouped by session_id
+    # 按 session_id 分组返回会话摘要
     sessions = {}
     for msg in data:
         sid = msg.get("session_id")
@@ -174,7 +174,7 @@ async def list_sessions(name: str):
 
 @router.get("/{name}/sessions/{session_id}")
 async def get_session(name: str, session_id: str):
-    """Get full conversation history for a session."""
+    """获取某个会话的完整对话历史。"""
     config = agent_manager.load_config(name)
     if not config:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
@@ -190,7 +190,7 @@ async def get_session(name: str, session_id: str):
 
 @router.get("/{name}/sessions/{session_id}/tools")
 async def get_session_tools(name: str, session_id: str):
-    """Get tool call logs for a session."""
+    """获取某个会话的工具调用日志。"""
     config = agent_manager.load_config(name)
     if not config:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")

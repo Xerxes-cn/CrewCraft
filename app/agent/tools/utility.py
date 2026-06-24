@@ -1,4 +1,4 @@
-"""Utility tools: time, math, text, crypto, encoding."""
+"""实用工具：时间、数学、文本、加密、编码。"""
 
 import base64 as _base64
 import hashlib
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from .registry import register
 
 
-# ── Time ───────────────────────────────────────────────────────────────
+# ── 时间 ───────────────────────────────────────────────────────────────
 
 @register(
     "time_now",
@@ -22,7 +22,7 @@ from .registry import register
     },
 )
 async def time_now(tz: str = ""):
-    """Return the current date/time in multiple formats."""
+    """返回多种格式的当前日期/时间。"""
     now = datetime.now(timezone.utc)
     try:
         import zoneinfo
@@ -41,7 +41,7 @@ async def time_now(tz: str = ""):
     }, indent=2)
 
 
-# ── Math ───────────────────────────────────────────────────────────────
+# ── 数学 ───────────────────────────────────────────────────────────────
 
 @register(
     "calculator",
@@ -51,7 +51,7 @@ async def time_now(tz: str = ""):
     },
 )
 async def calculator(expression: str):
-    """Evaluate a mathematical expression safely."""
+    """安全地计算数学表达式。"""
     allowed_names = {
         "abs": abs, "round": round,
         "sqrt": math.sqrt, "sin": math.sin, "cos": math.cos,
@@ -78,7 +78,7 @@ async def calculator(expression: str):
     },
 )
 async def random_number(lo: float = 0, hi: float = 100, count: int = 1, decimals: int = 0):
-    """Generate random number(s)."""
+    """生成随机数。"""
     count = 1 if count < 1 else (100 if count > 100 else count)
     results = []
     for _ in range(count):
@@ -92,7 +92,7 @@ async def random_number(lo: float = 0, hi: float = 100, count: int = 1, decimals
     return json.dumps(results)
 
 
-# ── Text / JSON ────────────────────────────────────────────────────────
+# ── 文本 / JSON ────────────────────────────────────────────────────────
 
 @register(
     "text_stats",
@@ -102,7 +102,7 @@ async def random_number(lo: float = 0, hi: float = 100, count: int = 1, decimals
     },
 )
 async def text_stats(text: str):
-    """Count stats for a text string."""
+    """统计文本的字符数。"""
     lines = text.split("\n")
     return json.dumps({
         "characters": len(text),
@@ -123,7 +123,7 @@ async def text_stats(text: str):
     },
 )
 async def json_tool(input: str, action: str = "format"):
-    """Parse, validate, or query JSON."""
+    """解析、验证或查询 JSON。"""
     try:
         data = json.loads(input)
     except json.JSONDecodeError as e:
@@ -159,7 +159,7 @@ async def json_tool(input: str, action: str = "format"):
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
-# ── Encoding / Crypto ──────────────────────────────────────────────────
+# ── 编码 / 加密 ──────────────────────────────────────────────────────
 
 @register(
     "base64",
@@ -170,7 +170,7 @@ async def json_tool(input: str, action: str = "format"):
     },
 )
 async def base64(input: str, action: str = "encode"):
-    """Base64 encode or decode."""
+    """Base64 编码或解码。"""
     try:
         if action == "encode":
             return _base64.b64encode(input.encode("utf-8")).decode("utf-8")
@@ -189,7 +189,7 @@ async def base64(input: str, action: str = "encode"):
     },
 )
 async def hash(input: str, algorithm: str = "sha256"):
-    """Compute hash of input string."""
+    """计算输入字符串的哈希值。"""
     algorithms = {
         "md5": hashlib.md5,
         "sha1": hashlib.sha1,
@@ -212,7 +212,7 @@ async def hash(input: str, algorithm: str = "sha256"):
     },
 )
 async def uuid_gen(version: str = "v4", count: int = 1):
-    """Generate UUID(s)."""
+    """生成 UUID。"""
     count = 1 if count < 1 else (100 if count > 100 else count)
     results = []
     for _ in range(count):

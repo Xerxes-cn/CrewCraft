@@ -1,10 +1,10 @@
-"""Agent process lifecycle management.
+"""Agent 进程生命周期管理。
 
-Handles:
-- Loading/saving agent configs from data/agents/
-- Spawning agent subprocesses on demand
-- Port allocation
-- Tracking running agents
+处理：
+- 从 data/agents/ 加载/保存 Agent 配置
+- 按需启动 Agent 子进程
+- 端口分配
+- 跟踪运行中的 Agent
 """
 
 import asyncio
@@ -22,11 +22,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentConfig:
-    """Agent configuration loaded from JSON file.
+    """从 JSON 文件加载的 Agent 配置。
 
-    system_prompt is loaded from data/agents/{name}.prompt.md at runtime.
-    tools are NOT stored — all agents get all available tools by default.
-    Custom tools can be placed in data/agents/{name}/skills/.
+    system_prompt 在运行时从 data/agents/{name}.prompt.md 加载。
+    工具不被存储 — 默认所有 Agent 都获得所有可用工具。
+    自定义工具可以放在 data/agents/{name}/skills/ 目录中。
     """
 
     name: str
@@ -38,7 +38,7 @@ class AgentConfig:
 
     @property
     def system_prompt(self) -> str:
-        """Load system prompt from .prompt.md file."""
+        """从 .prompt.md 文件加载系统提示词。"""
         return self.load_prompt_file()
 
     def load_prompt_file(self, data_dir: Path | None = None) -> str:
@@ -46,12 +46,12 @@ class AgentConfig:
         prompt = load_prompt(self.name, data_dir)
         if prompt:
             return prompt
-        # Fallback: return description if prompt not yet generated
+        # 回退：如果提示词尚未生成则返回描述
         return self.description or ""
 
     @property
     def tools(self) -> list[str]:
-        """All agents get all built-in tools + any agent-specific skills."""
+        """所有 Agent 都获得所有内置工具 + 任何 Agent 特定的技能。"""
         from app.agent.tools import registry
         return registry.list_names()
 
@@ -78,24 +78,24 @@ class AgentConfig:
 
 
 class AgentManager:
-    """Manages agent configuration and process lifecycle."""
+    """管理 Agent 配置和进程生命周期。"""
 
     def __init__(self, data_dir: Path | str | None = None):
         self.data_dir = Path(data_dir) if data_dir else config.data_dir
         self.agents_dir = self.data_dir / "agents"
         self.agents_dir.mkdir(parents=True, exist_ok=True)
-        # agent_name -> asyncio.subprocess.Process
-        self._processes: dict[str, Any] = {}  # asyncio.subprocess.Process or str (container name)
-        # agent_name -> bool (WebSocket connected)
+        # agent_name -> asyncio.subprocess.Process 或 str（容器名称）
+        self._processes: dict[str, Any] = {}
+        # agent_name -> bool（WebSocket 已连接）
         self._online: dict[str, bool] = {}
 
-    # ── Config file operations ──────────────────────────────────────────
+    # ── 配置文件操作 ──────────────────────────────────────────────────
 
     def _config_path(self, name: str) -> Path:
         return self.agents_dir / f"{name}.json"
 
     def load_config(self, name: str) -> Optional[AgentConfig]:
-        """Load agent config from JSON file."""
+        """从 JSON 文件加载 Agent 配置。"""
         path = self._config_path(name)
         if not path.exists():
             return None
@@ -103,12 +103,12 @@ class AgentManager:
         return AgentConfig.from_dict(data)
 
     def save_config(self, config: AgentConfig) -> None:
-        """Save agent config to JSON file."""
+        """将 Agent 配置保存到 JSON 文件。"""
         path = self._config_path(config.name)
         path.write_text(json.dumps(config.to_dict(), indent=2, ensure_ascii=False))
 
     def delete_config(self, name: str) -> bool:
-        """Delete agent config file. Returns False if not found."""
+        """删除 Agent 配置文件。未找到则返回 False。"""
         path = self._config_path(name)
         if not path.exists():
             return False
@@ -116,7 +116,7 @@ class AgentManager:
         return True
 
     def list_configs(self) -> list[AgentConfig]:
-        """List all agent configs from the agents directory."""
+        """列出 agents 目录下的所有 Agent 配置。"""
         configs = []
         for path in sorted(self.agents_dir.glob("*.json")):
             try:
@@ -127,17 +127,17 @@ class AgentManager:
         return configs
 
     def next_port(self) -> int:
-        """Find the next available port."""
+        """找到下一个可用端口。"""
         port = config.agent_port_start
         existing = {c.port for c in self.list_configs()}
         while port in existing:
             port += 1
         return port
 
-    # ── Process lifecycle ────────────────────────────────────────────────
+    # ── 进程生命周期 ──────────────────────────────────────────────────
 
     async def start_agent(self, name: str) -> Optional[int]:
-        """Start an agent process/container. Returns the port, or None on failure."""
+        """启动一个 Agent 进程/容器。返回端口号，失败则返回 None。"""
         agent_config = self.load_config(name)
         if not agent_config:
             logger.error(f"Agent {name} not found")
@@ -158,7 +158,7 @@ class AgentManager:
             return await self._start_subprocess(name, agent_config)
 
     async def _start_subprocess(self, name: str, agent_config) -> int:
-        """Start agent as a local subprocess."""
+        """以本地子进程方式启动 Agent。"""
         logger.info(f"Starting agent {name} on port {agent_config.port} (subprocess)")
         env = os.environ.copy()
         env["CREWCRAFT_AGENT_NAME"] = name
@@ -177,7 +177,7 @@ class AgentManager:
         return agent_config.port
 
     async def _start_docker(self, name: str, agent_config) -> Optional[int]:
-        """Start agent as a Docker container using Python Docker SDK."""
+        """使用 Python Docker SDK 以 Docker 容器方式启动 Agent。"""
         container_name = f"crewcraft-agent-{name}"
         port = agent_config.port
 
@@ -187,7 +187,7 @@ class AgentManager:
             logger.error(f"Docker not available: {e}")
             return None
 
-        # Check if container already exists
+        # 检查容器是否已存在
         try:
             existing = client.containers.get(container_name)
             if existing.status == "running":
@@ -195,10 +195,10 @@ class AgentManager:
                 self._processes[name] = container_name
                 self._online[name] = False
                 return port
-            # Remove stopped container
+            # 移除已停止的容器
             existing.remove(force=True)
         except Exception:
-            pass  # Not found, ok
+            pass  # 未找到，正常
 
         logger.info(f"Starting agent {name} on port {port} (docker)")
 
@@ -227,7 +227,7 @@ class AgentManager:
         return port
 
     async def stop_agent(self, name: str) -> None:
-        """Stop an agent (subprocess or docker container)."""
+        """停止一个 Agent（子进程或 Docker 容器）。"""
         target = self._processes.pop(name, None)
         self._online.pop(name, None)
 
@@ -235,7 +235,7 @@ class AgentManager:
             return
 
         if isinstance(target, str):
-            # Docker container
+            # Docker 容器
             logger.info(f"Stopping Docker agent {name}")
             try:
                 client = self._docker_client()
@@ -245,7 +245,7 @@ class AgentManager:
             except Exception as e:
                 logger.warning(f"Docker stop failed for {name}: {e}")
         else:
-            # Subprocess
+            # 子进程
             if target.returncode is None:
                 logger.info(f"Stopping agent {name}")
                 target.terminate()
@@ -258,38 +258,38 @@ class AgentManager:
 
     @staticmethod
     def _docker_client():
-        """Get a Docker client. Cached on first call."""
+        """获取 Docker 客户端。首次调用时缓存。"""
         import docker
         return docker.from_env()
 
     def is_running(self, name: str) -> bool:
-        """Check if agent process/container is running."""
+        """检查 Agent 进程/容器是否正在运行。"""
         target = self._processes.get(name)
         if target is None:
             return False
         if isinstance(target, str):
-            # Docker — assume running if we have a name (could enhance with docker ps check)
+            # Docker — 如果有名称则假设正在运行（可通过 docker ps 检查来增强）
             return True
         return target.returncode is None
 
     def set_online(self, name: str, online: bool):
-        """Mark an agent as online/offline."""
+        """标记 Agent 为在线/离线。"""
         self._online[name] = online
 
     def is_online(self, name: str) -> bool:
-        """Check if an agent is online (WebSocket connected)."""
+        """检查 Agent 是否在线（WebSocket 已连接）。"""
         return self._online.get(name, False)
 
     def is_running(self, name: str) -> bool:
-        """Check if agent process is running."""
+        """检查 Agent 进程是否正在运行。"""
         proc = self._processes.get(name)
         return proc is not None and proc.returncode is None
 
     async def shutdown_all(self):
-        """Stop all running agent processes."""
+        """停止所有运行中的 Agent 进程。"""
         for name in list(self._processes.keys()):
             await self.stop_agent(name)
 
 
-# Singleton
+# 单例
 agent_manager = AgentManager()

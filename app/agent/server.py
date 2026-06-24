@@ -1,12 +1,12 @@
-"""Agent server process.
+"""Agent 服务进程。
 
-Each agent runs as an independent subprocess:
-1. Connects to Gateway via WebSocket
-2. Registers with its agent name
-3. Receives tasks and executes them via deepagents
-4. Sends progress updates and results back to Gateway
-5. Handles heartbeat and idle shutdown
-6. Saves conversation history to sessions/{name}/
+每个 Agent 作为独立的子进程运行：
+1. 通过 WebSocket 连接到网关
+2. 使用其 Agent 名称进行注册
+3. 接收任务并通过 deepagents 执行
+4. 将进度更新和结果发送回网关
+5. 处理心跳和空闲关闭
+6. 将会话历史保存到 sessions/{name}/
 """
 
 import asyncio
@@ -26,25 +26,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── Configuration from environment ─────────────────────────────────────
+# ── 从环境变量读取配置 ───────────────────────────────────────────────────
 
 AGENT_NAME = os.getenv("CREWCRAFT_AGENT_NAME", "default")
 AGENT_PORT = int(os.getenv("CREWCRAFT_AGENT_PORT", "9001"))
 
-TOOL_RESULT_TRUNCATE = 100  # characters to keep in sessions.json
+TOOL_RESULT_TRUNCATE = 100  # sessions.json 中保留的字符数
 
 SESSION_DIR = config.data_dir / "sessions" / AGENT_NAME
 
 
-# ── Session persistence ────────────────────────────────────────────────
+# ── 会话持久化 ──────────────────────────────────────────────────────────
 
 
 def save_message(session_id: str, role: str, content: str, tool_name: str = ""):
-    """Append a message to the sessions.json file."""
+    """将一条消息追加到 sessions.json 文件。"""
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
     session_file = SESSION_DIR / "sessions.json"
 
-    # Load existing
+    # 加载已有数据
     messages = []
     if session_file.exists():
         try:
@@ -66,7 +66,7 @@ def save_message(session_id: str, role: str, content: str, tool_name: str = ""):
 
 
 def save_tool_log(session_id: str, tool_name: str, input_data: dict, output_data: str):
-    """Save tool call details to tool_logs.json."""
+    """将工具调用详情保存到 tool_logs.json。"""
     SESSION_DIR.mkdir(parents=True, exist_ok=True)
     tool_file = SESSION_DIR / "tool_logs.json"
 
@@ -88,26 +88,26 @@ def save_tool_log(session_id: str, tool_name: str, input_data: dict, output_data
     tool_file.write_text(json.dumps(logs, indent=2, ensure_ascii=False))
 
 
-# ── Agent runner (wraps deepagents) ────────────────────────────────────
+# ── Agent 运行器（封装 deepagents）───────────────────────────────────────
 
 async def run_task(session_id: str, content: str, ws, config: dict) -> str:
-    """Run a task using deepagents and stream results via WebSocket.
+    """使用 deepagents 运行任务并通过 WebSocket 流式传输结果。
 
-    Args:
-        session_id: Unique session identifier.
-        content: User's message content.
-        ws: WebSocket connection to gateway.
-        config: Agent configuration received from gateway (model, system_prompt, tools).
+    参数：
+        session_id: 唯一的会话标识符。
+        content: 用户的消息内容。
+        ws: 与网关的 WebSocket 连接。
+        config: 从网关接收的 Agent 配置（model, system_prompt, tools）。
     """
     model = config.get("model", "openai:gpt-4o")
     system_prompt = config.get("system_prompt", "")
     tools_list = config.get("tools", [])
 
-    # Save the user message
+    # 保存用户消息
     save_message(session_id, "user", content)
 
     try:
-        # Try to use deepagents
+        # 尝试使用 deepagents
         from deepagents import create_deep_agent
 
         agent = create_deep_agent(
@@ -116,7 +116,7 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
             tools=_build_tools(tools_list),
         )
 
-        # Stream execution
+        # 流式执行
         full_response = ""
         async for event in agent.astream_events(
             {"messages": [{"role": "user", "content": content}]},
@@ -124,28 +124,28 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
         ):
             kind = event.get("event")
 
-            # Collect assistant messages
+            # 收集 assistant 消息
             if kind == "on_chat_model_stream":
                 chunk = event.get("data", {}).get("chunk")
                 if chunk and hasattr(chunk, "content") and chunk.content:
                     full_response += chunk.content
 
-            # Log tool calls
+            # 记录工具调用
             elif kind == "on_tool_end":
                 tool_input = event.get("data", {}).get("input", {})
                 tool_output = str(event.get("data", {}).get("output", ""))
                 tool_name = event.get("name", "unknown")
 
-                # Save truncated version to sessions
+                # 保存截断版本到 sessions
                 truncated = tool_output[:TOOL_RESULT_TRUNCATE]
                 if len(tool_output) > TOOL_RESULT_TRUNCATE:
                     truncated += "..."
                 save_message(session_id, "tool", truncated, tool_name=tool_name)
 
-                # Save full version to tool_logs
+                # 保存完整版本到 tool_logs
                 save_tool_log(session_id, tool_name, tool_input, tool_output)
 
-                # Send progress update
+                # 发送进度更新
                 await ws.send(json.dumps({
                     "type": "task_update",
                     "task_id": _current_task_id,
@@ -154,7 +154,7 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
                     "progress": f"Tool {tool_name} completed",
                 }))
 
-        # Save assistant message
+        # 保存 assistant 消息
         if full_response:
             save_message(session_id, "assistant", full_response)
 
@@ -166,13 +166,13 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
 
 
 def _build_tools(tools_list: list[str]) -> list:
-    """Build tool list from configuration names using the tool registry."""
+    """根据配置名称使用工具注册表构建工具列表。"""
     from .tools import get_tool_callable, registry
 
     if not tools_list:
         return []
 
-    # Validate that all requested tools exist
+    # 验证所有请求的工具是否存在
     available = set(registry.list_names())
     tools = []
     for name in tools_list:
@@ -193,7 +193,7 @@ _current_task_id = ""
 async def _fallback_run(
     session_id: str, content: str, model: str, system_prompt: str, ws, config: dict
 ) -> str:
-    """Fallback when deepagents is not available: simple echo/reflection."""
+    """deepagents 不可用时的回退方案：简单的 echo/reflection。"""
     tools = config.get("tools", [])
     response = f"[Fallback mode] Agent {AGENT_NAME} received: {content}"
     if tools:
@@ -202,13 +202,13 @@ async def _fallback_run(
     return response
 
 
-# ── WebSocket client ───────────────────────────────────────────────────
+# ── WebSocket 客户端 ────────────────────────────────────────────────────
 
 async def agent_loop():
-    """Main agent loop: connect to gateway, bidirectional register, handle messages."""
+    """Agent 主循环：连接网关，双向注册，处理消息。"""
     global _current_task_id
 
-    # Agent starts with empty config — gateway will provide it on registration
+    # Agent 以空配置启动 — 网关将在注册时提供配置
     agent_config: dict = {}
     idle_timeout = config.agent_idle_timeout
     last_task_time = asyncio.get_event_loop().time()
@@ -218,20 +218,20 @@ async def agent_loop():
 
     async for ws in websockets.connect(gateway_ws_url):
         try:
-            # ── Phase 1: Bidirectional registration ──────────────────────
+            # ── 阶段 1: 双向注册 ──────────────────────────────────────
             await ws.send(json.dumps({
                 "type": "register",
                 "name": AGENT_NAME,
             }))
             logger.info(f"Agent {AGENT_NAME} sent registration request")
 
-            # Wait for gateway to confirm and send config
+            # 等待网关确认并发送配置
             raw = await asyncio.wait_for(ws.recv(), timeout=10)
             msg = json.loads(raw)
 
             if msg.get("type") == "error":
                 logger.error(f"Registration rejected: {msg.get('message')}")
-                return  # Exit — agent not in registry
+                return  # 退出 — Agent 不在注册表中
 
             if msg.get("type") != "registered":
                 logger.error(f"Expected 'registered', got '{msg.get('type')}'")
@@ -242,7 +242,7 @@ async def agent_loop():
             logger.info(f"Agent {AGENT_NAME} registered (model={agent_config.get('model')}, "
                         f"tools={agent_config.get('tools')}, idle_timeout={idle_timeout}s)")
 
-            # ── Phase 2: Main message loop ───────────────────────────────
+            # ── 阶段 2: 主消息循环 ───────────────────────────────────
             async for raw in ws:
                 try:
                     msg = json.loads(raw)
@@ -262,7 +262,7 @@ async def agent_loop():
                     logger.info(f"Received task {_current_task_id}")
                     last_task_time = asyncio.get_event_loop().time()
 
-                    # Send running status
+                    # 发送运行中状态
                     await ws.send(json.dumps({
                         "type": "task_update",
                         "task_id": _current_task_id,
@@ -273,7 +273,7 @@ async def agent_loop():
                     try:
                         result = await run_task(session_id, content, ws, agent_config)
 
-                        # Send completion
+                        # 发送完成状态
                         await ws.send(json.dumps({
                             "type": "task_update",
                             "task_id": _current_task_id,
@@ -297,7 +297,7 @@ async def agent_loop():
                     logger.info("Gateway requested shutdown")
                     return
 
-                # Idle check
+                # 空闲检查
                 elapsed = asyncio.get_event_loop().time() - last_task_time
                 if _current_task_id == "" and elapsed > idle_timeout:
                     logger.info(f"Idle timeout ({idle_timeout}s), shutting down")
@@ -316,7 +316,7 @@ async def agent_loop():
 
 
 def main():
-    """Entry point for agent process."""
+    """Agent 进程的入口点。"""
     logger.info(f"Starting agent {AGENT_NAME} on port {AGENT_PORT}")
     asyncio.run(agent_loop())
 

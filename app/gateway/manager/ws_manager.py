@@ -1,7 +1,7 @@
-"""WebSocket connection pool and heartbeat management.
+"""WebSocket 连接池和心跳管理。
 
-Gateway runs an internal WebSocket server that agent processes connect to.
-This module manages the connection pool, heartbeat, and message routing.
+网关运行一个内部 WebSocket 服务器供 Agent 进程连接。
+本模块管理连接池、心跳和消息路由。
 """
 
 import asyncio
@@ -19,22 +19,22 @@ from .agent_manager import agent_manager as _am
 
 logger = logging.getLogger(__name__)
 
-TASK_TIMEOUT = 300  # seconds
+TASK_TIMEOUT = 300  # 秒
 
 
 class WSManager:
-    """Manages WebSocket connections from agent processes."""
+    """管理来自 Agent 进程的 WebSocket 连接。"""
 
     def __init__(self):
         # agent_name → ServerConnection
         self._connections: dict[str, ServerConnection] = {}
         # agent_name → heartbeat task
         self._heartbeats: dict[str, asyncio.Task] = {}
-        # task_id → asyncio.Future (for waiting on task results)
+        # task_id → asyncio.Future（用于等待任务结果）
         self._pending_tasks: dict[str, asyncio.Future] = {}
-        # agent_name → last heartbeat time
+        # agent_name → 上次心跳时间
         self._last_beat: dict[str, float] = {}
-        # Server instance
+        # 服务器实例
         self._server = None
 
     @property
@@ -44,14 +44,14 @@ class WSManager:
     def is_connected(self, name: str) -> bool:
         return name in self._connections
 
-    # ── Connection handler ───────────────────────────────────────────
+    # ── 连接处理器 ───────────────────────────────────────────────────
 
     async def handle_agent(self, ws: ServerConnection):
-        """Handle an incoming agent WebSocket connection."""
+        """处理一个接入的 Agent WebSocket 连接。"""
         agent_name: Optional[str] = None
 
         try:
-            # First message must be a registration
+            # 第一条消息必须是注册消息
             raw = await asyncio.wait_for(ws.recv(), timeout=10)
             msg = json.loads(raw)
 
@@ -62,7 +62,7 @@ class WSManager:
             agent_name = msg["name"]
             logger.info(f"Agent {agent_name} connecting...")
 
-            # Verify agent config exists
+            # 验证 Agent 配置是否存在
             config = _am.load_config(agent_name)
             if not config:
                 await ws.send(json.dumps({
@@ -72,7 +72,7 @@ class WSManager:
                 logger.warning(f"Rejected unregistered agent: {agent_name}")
                 return
 
-            # Close previous connection if exists
+            # 关闭之前的连接（如果存在）
             old = self._connections.get(agent_name)
             if old is not None:
                 try:
@@ -80,7 +80,7 @@ class WSManager:
                 except Exception:
                     pass
 
-            # Send registration confirmation + full config
+            # 发送注册确认 + 完整配置
             await ws.send(json.dumps({
                 "type": "registered",
                 "name": agent_name,
@@ -92,12 +92,12 @@ class WSManager:
             self._last_beat[agent_name] = loop_time()
             _am.set_online(agent_name, True)
 
-            # Start heartbeat
+            # 启动心跳
             self._heartbeats[agent_name] = asyncio.create_task(
                 self._heartbeat_loop(agent_name, ws)
             )
 
-            # Listen for messages from agent
+            # 监听来自 Agent 的消息
             async for raw in ws:
                 try:
                     msg = json.loads(raw)
@@ -117,7 +117,7 @@ class WSManager:
                             if msg.get("status") in ("completed", "failed"):
                                 future.set_result(msg)
                             else:
-                                # Progress update — store for status queries
+                                # 进度更新 — 存储以供状态查询
                                 future._result = msg
 
                 elif msg_type == "idle_shutdown":
@@ -135,7 +135,7 @@ class WSManager:
                 self._unregister(agent_name)
 
     def _unregister(self, name: str):
-        """Clean up agent connection."""
+        """清理 Agent 连接。"""
         self._connections.pop(name, None)
         self._last_beat.pop(name, None)
         _am.set_online(name, False)
@@ -144,10 +144,10 @@ class WSManager:
         if hb and not hb.done():
             hb.cancel()
 
-    # ── Heartbeat ────────────────────────────────────────────────────
+    # ── 心跳 ────────────────────────────────────────────────────────
 
     async def _heartbeat_loop(self, name: str, ws: ServerConnection):
-        """Send periodic pings and detect dead connections."""
+        """发送定期 ping 并检测死连接。"""
         try:
             while name in self._connections:
                 await asyncio.sleep(config.agent_heartbeat_interval)
@@ -162,12 +162,12 @@ class WSManager:
         except asyncio.CancelledError:
             pass
 
-    # ── Task dispatching ─────────────────────────────────────────────
+    # ── 任务分派 ────────────────────────────────────────────────────
 
     async def dispatch_task(
         self, agent_name: str, content: str
     ) -> dict:
-        """Send a task to an agent and return a future for the result."""
+        """将任务发送给 Agent 并返回一个等待结果的 Future。"""
         ws = self._connections.get(agent_name)
         if ws is None:
             raise RuntimeError(f"Agent {agent_name} is not connected")
@@ -183,7 +183,7 @@ class WSManager:
         }
         await ws.send(json.dumps(msg))
 
-        # Create a future to await the task result
+        # 创建 Future 以等待任务结果
         future: asyncio.Future = asyncio.Future()
         self._pending_tasks[task_id] = future
 
@@ -194,9 +194,9 @@ class WSManager:
         }
 
     def get_task_result(self, task_id: str) -> Optional[dict]:
-        """Get the current status of a task.
+        """获取任务的当前状态。
 
-        Returns None if task not found, or a status dict with fields:
+        如果任务未找到返回 None；否则返回包含以下字段的状态字典：
         task_id, session_id, status (pending/running/completed/failed)
         """
         future = self._pending_tasks.get(task_id)
@@ -225,10 +225,10 @@ class WSManager:
     def all_task_ids(self) -> list[str]:
         return list(self._pending_tasks.keys())
 
-    # ── Server lifecycle ──────────────────────────────────────────────
+    # ── 服务器生命周期 ──────────────────────────────────────────────
 
     async def start_server(self, host: str = "127.0.0.1", port: int = 8765):
-        """Start the WebSocket server for agents to connect to."""
+        """启动 WebSocket 服务器，供 Agent 连接。"""
         if self._server is not None:
             return
 
@@ -238,13 +238,13 @@ class WSManager:
         logger.info(f"WebSocket server listening on ws://{host}:{port}")
 
     async def stop_server(self):
-        """Stop the WebSocket server."""
+        """停止 WebSocket 服务器。"""
         if self._server:
             self._server.close()
             await self._server.wait_closed()
             self._server = None
 
-        # Close all agent connections
+        # 关闭所有 Agent 连接
         for name, ws in list(self._connections.items()):
             try:
                 await ws.close()
@@ -254,9 +254,9 @@ class WSManager:
 
 
 def loop_time() -> float:
-    """Get the current event loop time."""
+    """获取当前事件循环时间。"""
     return asyncio.get_event_loop().time()
 
 
-# Singleton
+# 单例
 ws_manager = WSManager()

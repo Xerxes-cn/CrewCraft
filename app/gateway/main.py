@@ -1,9 +1,9 @@
-"""Gateway FastAPI application.
+"""网关 FastAPI 应用。
 
-The gateway is the central hub:
-- REST API for CLI / IM platform clients
-- Internal WebSocket server for agent processes
-- Manages agent lifecycle and task dispatching
+网关是中心枢纽：
+- REST API 供 CLI / IM 平台客户端使用
+- 内部 WebSocket 服务器供 Agent 进程连接
+- 管理 Agent 生命周期和任务分派
 """
 
 import logging
@@ -27,17 +27,17 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle for the gateway."""
+    """网关的启动和关闭生命周期。"""
     logger.info("Starting gateway...")
     await ws_manager.start_server(config.ws_host, config.ws_port)
     logger.info(f"Agent WebSocket server at {config.ws_url}")
 
-    # Initialize built-in orchestrator
+    # 初始化内置编排器
     from .orchestrator import get_orchestrator
     get_orchestrator(agent_manager, ws_manager)
 
     yield
-    # Shutdown: stop all agents and WS server
+    # 关闭：停止所有 Agent 和 WS 服务器
     logger.info("Shutting down gateway...")
     await agent_manager.shutdown_all()
     await ws_manager.stop_server()
@@ -64,7 +64,7 @@ async def health():
 
 
 def start_gateway(host: str = None, port: int = None):
-    """Entry point: start the gateway with uvicorn."""
+    """入口点：使用 uvicorn 启动网关。"""
     import uvicorn
     uvicorn.run(
         app,
