@@ -23,20 +23,16 @@ agent_app = typer.Typer(help="Manage agents", no_args_is_help=True)
 def agent_create(
     name: str = typer.Option(..., "--name", "-n", help="Agent name (unique identifier)"),
     model: str = typer.Option(..., "--model", "-m", help="LLM model (e.g. deepseek:chat)"),
-    prompt: str = typer.Option("", "--prompt", "-p", help="System prompt"),
-    tools: str = typer.Option("", "--tools", "-t", help="Comma-separated tool names"),
+    desc: str = typer.Option("", "--desc", "-d", help="Describe what the agent does (system prompt auto-generated)"),
 ):
-    """Create a new agent."""
-    tool_list = [t.strip() for t in tools.split(",") if t.strip()] if tools else []
-
+    """Create a new agent. System prompt is auto-generated from --desc."""
     try:
         resp = httpx.post(
             f"{GATEWAY_URL}/api/agents",
             json={
                 "name": name,
                 "model": model,
-                "system_prompt": prompt,
-                "tools": tool_list,
+                "description": desc,
             },
         )
         resp.raise_for_status()
@@ -81,13 +77,15 @@ def agent_inspect(
         a = resp.json()
         typer.echo(f"Name:         {a['name']}")
         typer.echo(f"Model:        {a['model']}")
+        typer.echo(f"Description:  {a.get('description', '')}")
         typer.echo(f"Port:         {a['port']}")
-        typer.echo(f"Tools:        {', '.join(a['tools']) or '(none)'}")
+        typer.echo(f"Tools:        {len(a['tools'])} available (all built-in)")
         typer.echo(f"Idle timeout: {a['idle_timeout']}s")
         typer.echo(f"Online:       {'yes' if a['online'] else 'no'}")
         typer.echo(f"Created:      {a['created_at']}")
-        if a["system_prompt"]:
-            typer.echo(f"\nSystem Prompt:\n{a['system_prompt']}")
+        if a.get("system_prompt"):
+            preview = a["system_prompt"][:500]
+            typer.echo(f"\nSystem Prompt (first 500 chars):\n{preview}")
     except httpx.HTTPStatusError as e:
         typer.echo(f"✗ {e.response.json().get('detail', e)}", err=True)
         raise typer.Exit(1)
@@ -119,6 +117,27 @@ def agent_delete(
         raise typer.Exit(1)
 
 
+@agent_app.command("generate-prompt")
+def agent_generate_prompt(
+    name: str = typer.Argument(..., help="Agent name"),
+    desc: str = typer.Option("", "--desc", "-d", help="New description to regenerate prompt from"),
+):
+    """Regenerate an agent's system prompt from a description."""
+    try:
+        resp = httpx.post(
+            f"{GATEWAY_URL}/api/agents/{name}/generate-prompt",
+            json={"description": desc},
+        )
+        resp.raise_for_status()
+        typer.echo(f"✓ Prompt regenerated for '{name}'")
+    except httpx.HTTPStatusError as e:
+        typer.echo(f"✗ {e.response.json().get('detail', e)}", err=True)
+        raise typer.Exit(1)
+    except httpx.ConnectError:
+        typer.echo("✗ Cannot connect to gateway.", err=True)
+        raise typer.Exit(1)
+
+
 # ── Task commands ──────────────────────────────────────────────────────
 
 task_app = typer.Typer(help="Manage tasks", no_args_is_help=True)
@@ -126,16 +145,16 @@ task_app = typer.Typer(help="Manage tasks", no_args_is_help=True)
 
 @task_app.command("run")
 def task_run(
-    agent: str = typer.Option(..., "--agent", "-a", help="Target agent name"),
     content: str = typer.Argument(..., help="Task description"),
+    agent: str = typer.Option(None, "--agent", "-a", help="Target agent (omit for auto-orchestration)"),
     poll: bool = typer.Option(True, "--poll/--no-poll", help="Poll for result until complete"),
 ):
-    """Create a task and assign it to an agent."""
+    """Create a task. Without --agent, the orchestrator auto-assigns it."""
     try:
-        resp = httpx.post(
-            f"{GATEWAY_URL}/api/tasks",
-            json={"agent_name": agent, "content": content},
-        )
+        payload = {"content": content}
+        if agent:
+            payload["agent_name"] = agent
+        resp = httpx.post(f"{GATEWAY_URL}/api/tasks", json=payload)
         resp.raise_for_status()
         data = resp.json()
         task_id = data["task_id"]

@@ -31,6 +31,11 @@ async def lifespan(app: FastAPI):
     logger.info("Starting gateway...")
     await ws_manager.start_server(config.ws_host, config.ws_port)
     logger.info(f"Agent WebSocket server at {config.ws_url}")
+
+    # Initialize built-in orchestrator
+    from .orchestrator import get_orchestrator
+    get_orchestrator(agent_manager, ws_manager)
+
     yield
     # Shutdown: stop all agents and WS server
     logger.info("Shutting down gateway...")
