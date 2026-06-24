@@ -170,7 +170,7 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
 
 def _build_tools(tools_list: list[str]) -> list:
     """Build tool list from configuration names using the tool registry."""
-    from .tools import get_tool_callables, registry
+    from .tools import get_tool_callable, registry
 
     if not tools_list:
         return []
