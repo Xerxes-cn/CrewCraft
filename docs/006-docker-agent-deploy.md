@@ -31,10 +31,15 @@ CREWCRAFT_AGENT_DEPLOY_MODE=docker   # docker | subprocess (default)
 
 ### Gateway 变更
 
-- `agent_manager.py`: 添加 `deploy_mode`，Docker 模式下用 `docker run/stop` 管理容器
+- `agent_manager.py`: 添加 `deploy_mode`，Docker 模式下用 Python Docker SDK 管理容器
 - 容器名: `crewcraft-agent-{name}`
-- 端口映射: `-p {port}:{port}`
-- 数据卷: `-v {data_dir}:/data`
+- 端口映射: `{port}:{port}`
+- 数据卷: `{data_dir}:/data`
+- 状态管理: 通过 SDK 获取容器状态、日志
+
+### 依赖
+
+- 新增 `docker>=7.0` pip 包 (Python Docker SDK)
 
 ### Agent Docker 镜像
 

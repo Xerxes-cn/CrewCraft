@@ -177,53 +177,53 @@ class AgentManager:
         return agent_config.port
 
     async def _start_docker(self, name: str, agent_config) -> Optional[int]:
-        """Start agent as a Docker container."""
+        """Start agent as a Docker container using Python Docker SDK."""
         container_name = f"crewcraft-agent-{name}"
         port = agent_config.port
 
-        # Check if container already exists
-        result = await self._docker("ps -a --filter", f"name={container_name}", "--format", "{{.Status}}")
-        if result and "Up" in result:
-            logger.info(f"Docker agent {name} already running")
-            return port
+        try:
+            client = self._docker_client()
+        except Exception as e:
+            logger.error(f"Docker not available: {e}")
+            return None
 
-        # Remove stopped container if exists
-        if result:
-            await self._docker("rm", "-f", container_name)
+        # Check if container already exists
+        try:
+            existing = client.containers.get(container_name)
+            if existing.status == "running":
+                logger.info(f"Docker agent {name} already running ({existing.id[:12]})")
+                self._processes[name] = container_name
+                self._online[name] = False
+                return port
+            # Remove stopped container
+            existing.remove(force=True)
+        except Exception:
+            pass  # Not found, ok
 
         logger.info(f"Starting agent {name} on port {port} (docker)")
 
-        cmd = [
-            "docker", "run", "-d",
-            "--name", container_name,
-            "-p", f"{port}:{port}",
-            "-e", f"CREWCRAFT_AGENT_NAME={name}",
-            "-e", f"CREWCRAFT_AGENT_PORT={port}",
-            "-e", f"CREWCRAFT_GATEWAY_WS=ws://host.docker.internal:{config.ws_port}",
-            "-e", f"CREWCRAFT_DATA_DIR=/data",
-            "-v", f"{self.data_dir.absolute()}:/data",
-            "crewcraft-agent",
-        ]
-
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            container = client.containers.run(
+                image="crewcraft-agent",
+                name=container_name,
+                detach=True,
+                ports={f"{port}/tcp": port},
+                environment={
+                    "CREWCRAFT_AGENT_NAME": name,
+                    "CREWCRAFT_AGENT_PORT": str(port),
+                    "CREWCRAFT_GATEWAY_WS": f"ws://host.docker.internal:{config.ws_port}",
+                    "CREWCRAFT_DATA_DIR": "/data",
+                },
+                volumes={str(self.data_dir.absolute()): {"bind": "/data", "mode": "rw"}},
+                remove=False,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-            if proc.returncode != 0:
-                logger.error(f"Docker run failed: {stderr.decode()}")
-                return None
-            container_id = stdout.decode().strip()[:12]
-            logger.info(f"Docker container {container_id} started for {name}")
+            logger.info(f"Docker container {container.id[:12]} started for {name}")
         except Exception as e:
-            logger.error(f"Docker start failed: {e}")
+            logger.error(f"Docker run failed: {e}")
             return None
 
-        self._processes[name] = container_name  # Store name for stop
+        self._processes[name] = container_name
         self._online[name] = False
-        await asyncio.sleep(0.5)
         return port
 
     async def stop_agent(self, name: str) -> None:
@@ -237,8 +237,13 @@ class AgentManager:
         if isinstance(target, str):
             # Docker container
             logger.info(f"Stopping Docker agent {name}")
-            await self._docker("stop", target)
-            await self._docker("rm", target)
+            try:
+                client = self._docker_client()
+                container = client.containers.get(target)
+                container.stop(timeout=5)
+                container.remove()
+            except Exception as e:
+                logger.warning(f"Docker stop failed for {name}: {e}")
         else:
             # Subprocess
             if target.returncode is None:
@@ -251,15 +256,11 @@ class AgentManager:
                     target.kill()
                     await target.wait()
 
-    async def _docker(self, *args) -> str:
-        """Run a docker command and return stdout. Raises on failure."""
-        proc = await asyncio.create_subprocess_exec(
-            "docker", *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
-        return stdout.decode().strip()
+    @staticmethod
+    def _docker_client():
+        """Get a Docker client. Cached on first call."""
+        import docker
+        return docker.from_env()
 
     def is_running(self, name: str) -> bool:
         """Check if agent process/container is running."""
