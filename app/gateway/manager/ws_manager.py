@@ -14,11 +14,11 @@ from typing import Optional
 import websockets
 from websockets.asyncio.server import ServerConnection
 
+from app.config import config
 from .agent_manager import agent_manager as _am
 
 logger = logging.getLogger(__name__)
 
-HEARTBEAT_INTERVAL = 15  # seconds
 TASK_TIMEOUT = 300  # seconds
 
 
@@ -150,7 +150,7 @@ class WSManager:
         """Send periodic pings and detect dead connections."""
         try:
             while name in self._connections:
-                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                await asyncio.sleep(config.agent_heartbeat_interval)
                 if name not in self._connections:
                     break
 
