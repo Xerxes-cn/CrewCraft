@@ -27,12 +27,13 @@ def main(
 
 def register_commands():
     """Register all subcommands."""
-    from .cli.main import agent_app, task_app, session_app, gateway_app
+    from .cli.main import agent_app, task_app, session_app, gateway_app, tool_app
 
     cli.add_typer(agent_app, name="agent", help="Manage agents")
     cli.add_typer(task_app, name="task", help="Manage tasks")
     cli.add_typer(session_app, name="session", help="Manage sessions")
     cli.add_typer(gateway_app, name="gateway", help="Gateway server")
+    cli.add_typer(tool_app, name="tool", help="Manage tools")
 
 
 register_commands()

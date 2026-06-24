@@ -174,12 +174,25 @@ async def run_task(session_id: str, content: str, ws) -> str:
         return await _fallback_run(session_id, content, model, system_prompt, ws)
 
 
-def _build_tools(tools_list: list[str]):
-    """Build tool list from configuration names."""
+def _build_tools(tools_list: list[str]) -> list:
+    """Build tool list from configuration names using the tool registry."""
+    from .tools import get_tool_callables, registry
+
+    if not tools_list:
+        return []
+
+    # Validate that all requested tools exist
+    available = set(registry.list_names())
     tools = []
     for name in tools_list:
-        # Reserved for future: load tools from MCP servers or local modules
-        logger.info(f"Tool '{name}' requested but not yet implemented")
+        if name not in available:
+            logger.warning(f"Tool '{name}' not found. Available: {', '.join(sorted(available))}")
+            continue
+        fn = get_tool_callable(name)
+        if fn:
+            tools.append(fn)
+            logger.info(f"Tool '{name}' loaded")
+
     return tools
 
 

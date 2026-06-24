@@ -295,3 +295,43 @@ def gateway_start(
 
     from app.gateway.main import start_gateway
     start_gateway(host=host, port=port)
+
+
+# ── Tool commands ────────────────────────────────────────────────────────
+
+tool_app = typer.Typer(help="Manage tools", no_args_is_help=True)
+
+
+@tool_app.command("list")
+def tool_list():
+    """List all available tools that can be assigned to agents."""
+    try:
+        resp = httpx.get(f"{GATEWAY_URL}/api/tools")
+        resp.raise_for_status()
+        tools = resp.json()
+
+        if not tools:
+            typer.echo("No tools available.")
+            return
+
+        typer.echo(f"\nAvailable tools ({len(tools)}):\n")
+        for t in tools:
+            params = ", ".join(t.get("parameters", {}).keys()) or "none"
+            typer.echo(f"  {t['name']:<18} {params}")
+            typer.echo(f"  {'':18} {t['description'][:80]}")
+            typer.echo()
+    except httpx.HTTPError:
+        # Gateway not available or outdated — fallback to local
+        _tool_list_local()
+
+
+def _tool_list_local():
+    """List tools locally without gateway."""
+    from app.agent.tools import registry
+    tools = registry.list_all()
+    typer.echo(f"\nAvailable tools ({len(tools)}):\n")
+    for t in tools:
+        params = ", ".join(t.parameters.keys()) or "none"
+        typer.echo(f"  {t.name:<18} {params}")
+        typer.echo(f"  {'':18} {t.description[:80]}")
+        typer.echo()
