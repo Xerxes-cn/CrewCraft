@@ -23,39 +23,44 @@ try:
     )
     DINGTALK_AVAILABLE = True
 except ImportError:
-    pass
+    CallbackHandler = object  # type: ignore
+    CallbackMessage = object  # type: ignore
+    ChatbotMessage = object  # type: ignore
+    AckMessage = None
 
 
-class _DingTalkHandler(CallbackHandler):
-    """钉钉 Stream SDK 回调处理器。"""
+if DINGTALK_AVAILABLE:
 
-    def __init__(self, channel: "DingTalkChannel"):
-        super().__init__()
-        self.ch = channel
+    class _DingTalkHandler(CallbackHandler):
+        """钉钉 Stream SDK 回调处理器。"""
 
-    async def process(self, message: CallbackMessage):
-        try:
-            chatbot_msg = ChatbotMessage.from_dict(message.data)
-            content = ""
-            if chatbot_msg.text:
-                content = chatbot_msg.text.content.strip()
-            if not content:
+        def __init__(self, channel: "DingTalkChannel"):
+            super().__init__()
+            self.ch = channel
+
+        async def process(self, message: CallbackMessage):
+            try:
+                chatbot_msg = ChatbotMessage.from_dict(message.data)
+                content = ""
+                if chatbot_msg.text:
+                    content = chatbot_msg.text.content.strip()
+                if not content:
+                    return AckMessage.STATUS_OK, "OK"
+
+                chat_type = message.data.get("conversationType", "1")
+                conv_id = message.data.get("conversationId", "")
+                sender_id = chatbot_msg.sender_staff_id or chatbot_msg.sender_id
+                chat_id = f"group:{conv_id}" if chat_type == "2" else sender_id
+
+                inbound = InboundMsg(
+                    channel=self.ch._channel_name,
+                    sender_id=sender_id, chat_id=chat_id, content=content,
+                ).format()
+                await msg_manager.publish_inbound(inbound)
                 return AckMessage.STATUS_OK, "OK"
-
-            chat_type = message.data.get("conversationType", "1")
-            conv_id = message.data.get("conversationId", "")
-            sender_id = chatbot_msg.sender_staff_id or chatbot_msg.sender_id
-            chat_id = f"group:{conv_id}" if chat_type == "2" else sender_id
-
-            inbound = InboundMsg(
-                channel=self.ch._channel_name,
-                sender_id=sender_id, chat_id=chat_id, content=content,
-            ).format()
-            await msg_manager.publish_inbound(inbound)
-            return AckMessage.STATUS_OK, "OK"
-        except Exception:
-            logger.exception("钉钉消息处理异常")
-            return AckMessage.STATUS_OK, "Error"
+            except Exception:
+                logger.exception("钉钉消息处理异常")
+                return AckMessage.STATUS_OK, "Error"
 
 
 class DingTalkChannel(BaseChannel):

@@ -1,9 +1,10 @@
 """审批 API — REPL 轮询待审批操作。"""
 
-import asyncio
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -25,7 +26,7 @@ class ApprovalRequest(BaseModel):
 # ── 内存队列 ────────────────────────────────────────────────────────
 
 _pending: list[dict] = []
-_lock = asyncio.Lock()
+_lock = threading.Lock()
 
 
 def add_approval(agent: str, session_id: str, tool: str, action: str, permission: str) -> str:
@@ -40,36 +41,41 @@ def add_approval(agent: str, session_id: str, tool: str, action: str, permission
         "permission": permission,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    _pending.append(item)
+    with _lock:
+        _pending.append(item)
     logger.info(f"审批请求: {agent}/{tool} [{rid[:16]}]")
     return rid
 
 
-def get_pending(session_id: str = None) -> list[dict]:
+def get_pending(session_id: Optional[str] = None) -> list[dict]:
     """获取待审批列表。可过滤 session。"""
-    if session_id:
-        return [p for p in _pending if p["session_id"] == session_id]
-    return list(_pending)
+    with _lock:
+        if session_id:
+            return [p for p in _pending if p["session_id"] == session_id]
+        return list(_pending)
 
 
 def resolve_approval(request_id: str, decision: str) -> dict | None:
     """批准或拒绝。返回被处理的请求，或 None。"""
-    for i, p in enumerate(_pending):
-        if p["request_id"] == request_id:
-            _pending.pop(i)
-            p["decision"] = decision
-            logger.info(f"审批 {decision}: {request_id[:16]}")
-            return p
+    with _lock:
+        for i, p in enumerate(_pending):
+            if p["request_id"] == request_id:
+                _pending.pop(i)
+                p["decision"] = decision
+                logger.info(f"审批 {decision}: {request_id[:16]}")
+                return p
     return None
 
 
 def get_queue_size() -> int:
-    return len(_pending)
+    with _lock:
+        return len(_pending)
 
 
 def clear_queue():
     """清空队列（测试用）。"""
-    _pending.clear()
+    with _lock:
+        _pending.clear()
 
 
 # ── 路由 ────────────────────────────────────────────────────────────
