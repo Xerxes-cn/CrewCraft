@@ -36,32 +36,27 @@ Agent                     MCP Server
 
 ### Skill 系统
 
-两级目录，公共 + 私有：
+Agent 专属 Skill，存放在数据目录下：
 
 ```
-app/agent/skills/               # 公共 skill（所有 agent 可用）
+data/agents/{name}/skills/      # 该 Agent 的 skills
 ├── code-review.md
 ├── deploy.md
 └── research.md
-
-data/agents/{name}/skills/      # 私有 skill（仅该 agent）
-└── custom-review.md
 ```
 
-- 公共 skill 由项目维护，所有 Agent 自动加载
-- 私有 skill 仅该 Agent 可用，优先级高于公共（覆盖同名）
 - Skill 是 markdown 文件，内容为 Agent 行为指令和工具使用指南
+- 创建 Agent 后用户自行在 skills/ 目录下添加 .md 文件
+- Agent 启动时 `app/agent/skills` 加载器扫描该目录，注入 system_prompt
 
 ### 实现计划
 
 1. `app/agent/mcp.py` — MCP 客户端（连接、发现、调用）
-2. `app/agent/skills/` — 公共 skill 目录 + `__init__.py` 加载器
-3. 更新 `app/agent/server.py` — 合并 MCP tools + 注入 skills 到 system_prompt
-4. CLI: `/skill list` 查看可用 skills
+2. `app/agent/skills/__init__.py` — Skill 加载器
+3. 更新 `app/agent/server.py` — 合并 MCP tools + 注入 skills
 
 ### 变更范围
 
 - `app/agent/mcp.py` — 新增
-- `app/agent/skills/` — 新增公共 skills 目录
+- `app/agent/skills/__init__.py` — Skill 加载器
 - `app/agent/server.py` — 合并 MCP tools
-- `app/gateway/manager/agent_manager.py` — 启动时加载 MCP
