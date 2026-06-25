@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from app.config import config as app_config
-from .bus import msg_manager
+from app.models import ChannelConfig, InboundMsg, OutboundMsg
+from .bus import msg_manager, InboundMsg as _InboundMsg, OutboundMsg as _OutboundMsg
 
 logger = logging.getLogger(__name__)
 

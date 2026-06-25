@@ -3,7 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from .bus import InboundMsg, OutboundMsg, msg_manager
+from app.models import InboundMsg, OutboundMsg, ChannelConfig
+from .bus import msg_manager
 
 
 class BaseChannel(ABC):
@@ -38,11 +39,12 @@ class BaseChannel(ABC):
     async def _on_message(self, content: str, sender_id: str, chat_id: str,
                           media: list[str] | None = None, **kwargs):
         """子类调用此方法将收到的消息推入总线。"""
-        await msg_manager.publish_inbound(InboundMsg(
-            channel=self.name,
+        inbound = InboundMsg(
+            channel=f"{self.name}-{self.config.get('name', 'default')}",
             sender_id=sender_id,
             chat_id=chat_id,
             content=content,
             media=media or [],
             metadata=kwargs,
-        ))
+        ).format()
+        await msg_manager.publish_inbound(inbound)
