@@ -50,19 +50,34 @@ Agent 执行中
         └── 超时 (60s) → 自动拒绝
 ```
 
-### REPL 交互
+### REPL 交互 — 主动推送
+
+REPL 不要求用户手动查询。后台线程持续监听 Gateway，有审批请求时
+**立即弹出** 打断当前操作，用户处理完再回到正常交互。
 
 ```
-crewcraft> /approvals            # 查看待审批列表
-  1. [pending] researcher: rm -rf /tmp/cache (30s 前)
-  2. [pending] coder: pip install flask (2m 前)
+终端 2: REPL
+─────────────────────────────────────
+crewcraft> 帮我清理系统临时文件
+  (task 创建成功，等待 agent 执行...)
 
-crewcraft> /approve 1            # 批准 #1
-crewcraft> /deny 2               # 拒绝 #2
+  ╔══════════════════════════════════╗
+  ║ ⚠ 需要确认                       ║
+  ║ Agent: admin                     ║
+  ║ 操作: shell_exec                 ║
+  ║ 命令: rm -rf /tmp/cache          ║
+  ║ 权限级别: write                   ║
+  ║                                  ║
+  ║ [Y] 允许  [N] 拒绝  [A] 全部允许  ║
+  ╚══════════════════════════════════╝
+  > y
+  ✓ 已批准
 
-crewcraft> /agent create ... --approval interactive   # 创建交互模式 agent
-crewcraft> /agent create ... --approval auto          # 创建自动模式 agent（跳过审批）
+crewcraft>                          # 回到正常交互
 ```
+
+**监听机制**：REPL 启动后后台线程轮询 `GET /api/approvals/pending?session=<id>`，
+发现待审批请求立即在终端展示。一条接一条，流水线式逐个审批。
 
 ### Gateway 协议扩展
 
@@ -109,8 +124,8 @@ class ClaudeCodeProvider(AgentProvider):
 - `app/agent/tools/registry.py`：Tool 增加 `permission` 字段
 - `app/agent/tools/*.py`：所有工具标注权限级别
 - `app/gateway/manager/ws_manager.py`：新增 approval_request/response 消息处理
-- `app/gateway/orchestrator.py`：审批超时自动拒绝
-- `app/cli/repl.py`：新增 `/approvals`、`/approve`、`/deny` 命令，实时显示审批请求
+- `app/gateway/api/approvals.py`：`GET /api/approvals/pending` 端点（REPL 轮询用）
+- `app/cli/repl.py`：后台监听线程 + 即时弹出审批框，逐个处理
 - `app/gateway/api/agents.py`：Agent 创建时支持 `approval_mode` 参数
 - `app/config.py`：默认审批超时配置
 
@@ -120,17 +135,21 @@ class ClaudeCodeProvider(AgentProvider):
 # 终端 1: Gateway
 crewcraft gateway start
 
-# 终端 2: REPL
+# 终端 2: REPL — 审批主动推送
 crewcraft
 > /agent create admin --desc "系统管理" --approval interactive
 > /task run "清理临时文件"
 
-  # Agent 执行中遇到 shell_exec → 需要审批
-  ⚠ admin 要执行: find /tmp -name '*.tmp' -delete
-  [Y/n/A] > y
-  ✓ 已批准
+  (后台 agent 执行中...)
+  ╔════════════════════════════════╗
+  ║ ⚠ admin 要执行:                ║
+  ║   rm -rf /tmp/cache            ║
+  ║ [Y]允许 [N]拒绝 [A]全部允许    ║
+  ╚════════════════════════════════╝
+  > y
+  ✓ 已批准，agent 继续执行
 
-> /task run "更新依赖" --approval auto   # 这条跳过审批
+crewcraft>                          # 审批完回到交互
 ```
 
 ### Agent 配置
