@@ -38,10 +38,11 @@ class AgentResponse(BaseModel):
 
 
 def _agent_to_response(config: AgentConfig) -> AgentResponse:
+    from app.config import config as app_config
     return AgentResponse(
         name=config.name, model=config.model,
         description=config.description,
-        provider=config.provider or config.agent_deploy_mode,
+        provider=config.provider or app_config.agent_deploy_mode,
         system_prompt=config.system_prompt,
         tools=config.tools, port=config.port,
         idle_timeout=config.idle_timeout,
@@ -79,7 +80,7 @@ async def create_agent(body: AgentCreate):
         logger.info(f"Generated system prompt for '{body.name}' ({len(prompt)} chars)")
 
     logger.info(f"Created agent '{body.name}' (port {port})")
-    return _agent_to_response(config)
+    return _agent_to_response(agent_config)
 
 
 @router.get("")
