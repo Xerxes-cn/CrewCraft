@@ -2,41 +2,28 @@
 
 ## 概述
 
-支持微信、钉钉、飞书三个 IM 平台接入。用户在 IM 中 @机器人 发消息，
-Gateway 接收后转给 Orchestrator 处理，结果通过 IM 返回。
+支持微信、钉钉、飞书三个 IM 平台接入。每个 Channel 通过平台 SDK **主动连接**
+到 IM 服务器（WebSocket 或长轮询），不需要公网 IP、不需要配置 webhook 回调 URL。
 
 ## 架构
 
-Gateway 启动时注册 Channel。每个 Channel 向 IM 平台注册 webhook 回调地址，
-平台收到用户消息后通过 HTTP POST 推送消息到 Gateway。
-回复消息时 Gateway 调用平台 API 发送。
+Gateway 启动时初始化已启用的 Channel。Channel 通过各平台 SDK 主动建立
+与 IM 服务器的长连接，接收到消息后转发给 Gateway 的 Orchestrator 处理。
 
 ```
-用户 (微信/钉钉/飞书 App)
+Gateway (CrewCraft)
   │
-  │  发消息给机器人
-  ▼
-IM 平台服务器
-  │
-  │  HTTP POST (webhook 回调)
-  ▼
-Gateway (FastAPI)
-  ├── POST /api/channels/wechat/webhook    ← 微信回调
-  ├── POST /api/channels/dingtalk/webhook  ← 钉钉回调
-  └── POST /api/channels/feishu/webhook    ← 飞书回调
-  │
-  ▼
-Orchestrator → Agent 执行
-  │
-  ▼
-调用平台 API 回复消息
-  ├── 微信: POST https://qyapi.weixin.qq.com/cgi-bin/message/send
-  ├── 钉钉: POST https://oapi.dingtalk.com/robot/send
-  └── 飞书: POST https://open.feishu.cn/open-apis/im/v1/messages
+  ├── WeChat Channel ──HTTP long-poll──→ ilinkai.weixin.qq.com
+  ├── DingTalk Channel ──WebSocket─────→ DingTalk Stream API
+  └── Feishu Channel ──WebSocket───────→ Feishu Open API
+       │
+       │  收到用户消息
+       ▼
+  Orchestrator → Agent 执行 → Channel.send() → IM 平台 API → 用户收到回复
 ```
 
-> 这是标准的 webhook 模式：平台推送消息到 Gateway，Gateway 调用平台 API 回复。
-> 不是 Gateway 主动连到平台建立 WebSocket。平台通过配置的回调 URL 找到 Gateway。
+> 不需要公网暴露端口、不需要配置 webhook 回调。Channel 主动连到平台，
+> 在本地/Docker 环境即可工作。
 
 ## 设计
 
@@ -48,20 +35,28 @@ class BaseChannel(ABC):
     display_name: str   # 微信 / 钉钉 / 飞书
 
     @abstractmethod
-    async def verify(self, request) -> bool        # 验证签名/解密
+    async def start(self)           # 连接平台，开始监听消息
     @abstractmethod
-    async def parse(self, request) -> dict          # 解析消息 → {chat_id, content}
+    async def stop(self)            # 断开连接
     @abstractmethod
-    async def send(self, chat_id, content) -> bool  # 调用平台 API 发送消息
+    async def send(self, chat_id, content)  # 发送消息
 ```
 
 ### 消息流
 
 ```
-IM 发送消息 → webhook POST → verify 签名 → parse 提取文本
-  → 创建 task → Orchestrator → Agent 执行
-  → channel.reply(chat_id, result)
+Channel.start() → 建立长连接 → 平台推送消息
+  → Channel 解析 → 创建 task → Orchestrator → Agent
+  → Channel.send(chat_id, result) → 平台 API → 用户
 ```
+
+### 各平台通信方式
+
+| 平台 | SDK | 连接方式 | 说明 |
+|------|-----|----------|------|
+| 微信 | 无官方 SDK | HTTP 长轮询 `ilinkai.weixin.qq.com` | 扫码登录，token 持久化 |
+| 钉钉 | `dingtalk-stream` | WebSocket | AppKey/Secret 认证 |
+| 飞书 | `lark-oapi` | WebSocket | App ID/Secret 认证 |
 
 ### 配置
 
@@ -69,33 +64,25 @@ IM 发送消息 → webhook POST → verify 签名 → parse 提取文本
 CREWCRAFT_CHANNELS=wechat,dingtalk,feishu
 
 # 微信
-CREWCRAFT_WECHAT_TOKEN=xxx
-CREWCRAFT_WECHAT_AES_KEY=xxx
-CREWCRAFT_WECHAT_APP_ID=xxx
+CREWCRAFT_WECHAT_TOKEN=        # 扫码登录后自动获取
 
 # 钉钉
-CREWCRAFT_DINGTALK_APP_KEY=xxx
-CREWCRAFT_DINGTALK_APP_SECRET=xxx
+CREWCRAFT_DINGTALK_CLIENT_ID=
+CREWCRAFT_DINGTALK_CLIENT_SECRET=
 
 # 飞书
-CREWCRAFT_FEISHU_APP_ID=xxx
-CREWCRAFT_FEISHU_APP_SECRET=xxx
+CREWCRAFT_FEISHU_APP_ID=
+CREWCRAFT_FEISHU_APP_SECRET=
 ```
 
-### Gateway 路由
+### 使用
 
+```bash
+# 本地开发 — 配置密钥后直接启动
+cp .env.example .env
+crewcraft gateway start
+# Channel 自动连接到各平台，无需公网暴露
 ```
-POST /api/channels/wechat/webhook    → 微信回调（含 verify）
-POST /api/channels/dingtalk/webhook  → 钉钉回调
-POST /api/channels/feishu/webhook    → 飞书回调
-GET  /api/channels/status            → 各 channel 状态
-```
-
-### Channel 管理
-
-- 启动时根据 `CREWCRAFT_CHANNELS` 注册启用的 channel
-- 未配置密钥的 channel 跳过
-- 消息统一走 task 流程：`task = POST /api/tasks {content}` → 编排 → 回复
 
 ### 目录结构
 
@@ -103,21 +90,7 @@ GET  /api/channels/status            → 各 channel 状态
 app/channels/
 ├── __init__.py      # ChannelManager, 注册表
 ├── base.py          # BaseChannel 抽象
-├── wechat.py        # 微信企业号
-├── dingtalk.py      # 钉钉
-└── feishu.py        # 飞书
-```
-
-### 使用
-
-```bash
-# 配置
-cp .env.example .env
-# 编辑填入各平台密钥，设置 CREWCRAFT_CHANNELS=wechat,dingtalk,feishu
-
-# 启动
-crewcraft gateway start
-
-# IM 中 @机器人 "帮我搜索..."
-# → Agent 执行 → 回复到 IM
+├── wechat.py        # 微信（HTTP 长轮询）
+├── dingtalk.py      # 钉钉（WebSocket）
+└── feishu.py        # 飞书（WebSocket）
 ```
