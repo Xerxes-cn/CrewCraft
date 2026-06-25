@@ -7,19 +7,36 @@ Gateway 接收后转给 Orchestrator 处理，结果通过 IM 返回。
 
 ## 架构
 
+Gateway 启动时注册 Channel。每个 Channel 向 IM 平台注册 webhook 回调地址，
+平台收到用户消息后通过 HTTP POST 推送消息到 Gateway。
+回复消息时 Gateway 调用平台 API 发送。
+
 ```
-用户 (微信/钉钉/飞书)
+用户 (微信/钉钉/飞书 App)
   │
-  │  webhook / callback
+  │  发消息给机器人
+  ▼
+IM 平台服务器
+  │
+  │  HTTP POST (webhook 回调)
   ▼
 Gateway (FastAPI)
-  ├── /api/channels/wechat/webhook    ← 微信
-  ├── /api/channels/dingtalk/webhook  ← 钉钉
-  └── /api/channels/feishu/webhook    ← 飞书
+  ├── POST /api/channels/wechat/webhook    ← 微信回调
+  ├── POST /api/channels/dingtalk/webhook  ← 钉钉回调
+  └── POST /api/channels/feishu/webhook    ← 飞书回调
   │
   ▼
-Orchestrator → Agent → 结果 → 回复 IM
+Orchestrator → Agent 执行
+  │
+  ▼
+调用平台 API 回复消息
+  ├── 微信: POST https://qyapi.weixin.qq.com/cgi-bin/message/send
+  ├── 钉钉: POST https://oapi.dingtalk.com/robot/send
+  └── 飞书: POST https://open.feishu.cn/open-apis/im/v1/messages
 ```
+
+> 这是标准的 webhook 模式：平台推送消息到 Gateway，Gateway 调用平台 API 回复。
+> 不是 Gateway 主动连到平台建立 WebSocket。平台通过配置的回调 URL 找到 Gateway。
 
 ## 设计
 
@@ -31,11 +48,11 @@ class BaseChannel(ABC):
     display_name: str   # 微信 / 钉钉 / 飞书
 
     @abstractmethod
-    async def verify(self, request) -> bool        # 验证签名
+    async def verify(self, request) -> bool        # 验证签名/解密
     @abstractmethod
-    async def parse(self, request) -> InboundMsg   # 解析消息
+    async def parse(self, request) -> dict          # 解析消息 → {chat_id, content}
     @abstractmethod
-    async def reply(self, chat_id, content)        # 回复消息
+    async def send(self, chat_id, content) -> bool  # 调用平台 API 发送消息
 ```
 
 ### 消息流
