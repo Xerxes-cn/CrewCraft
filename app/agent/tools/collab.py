@@ -12,6 +12,7 @@ from .registry import register
         "to": {"type": "string", "description": "目标 Agent 名称"},
         "content": {"type": "string", "description": "要发送的消息内容"},
     },
+    permission="read",
 )
 async def send_to_agent(to: str, content: str):
     """向另一个 Agent 发送消息（通过 Gateway WebSocket 转发）。"""
@@ -29,6 +30,7 @@ async def send_to_agent(to: str, content: str):
     {
         "content": {"type": "string", "description": "要广播的消息内容"},
     },
+    permission="read",
 )
 async def broadcast_to_agents(content: str):
     """向所有其他 Agent 广播消息。"""

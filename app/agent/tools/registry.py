@@ -16,11 +16,13 @@ class Tool:
         description: str,
         func: Callable,
         parameters: dict = None,
+        permission: str = "safe",
     ):
         self.name = name
         self.description = description
         self.func = func
         self.parameters = parameters or {}
+        self.permission = permission  # safe | read | write | dangerous
 
     def __call__(self, **kwargs):
         return self.func(**kwargs)
@@ -44,6 +46,7 @@ class Tool:
         return {
             "name": self.name,
             "description": self.description,
+            "permission": self.permission,
             "parameters": {
                 k: {"type": v.get("type", "string"), "description": v.get("description", "")}
                 for k, v in self.parameters.items()
@@ -87,11 +90,15 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 
-def register(name: str, description: str, parameters: dict = None):
-    """装饰器，用于将函数注册为一个工具。"""
+def register(name: str, description: str, parameters: dict = None, permission: str = "safe"):
+    """装饰器，用于将函数注册为一个工具。
+
+    permission: safe | read | write | dangerous
+    """
 
     def decorator(func):
-        tool = Tool(name=name, description=description, func=func, parameters=parameters)
+        tool = Tool(name=name, description=description, func=func,
+                    parameters=parameters, permission=permission)
         registry.register(tool)
         return func
 

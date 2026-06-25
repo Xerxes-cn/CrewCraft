@@ -88,6 +88,45 @@ def save_tool_log(session_id: str, tool_name: str, input_data: dict, output_data
     tool_file.write_text(json.dumps(logs, indent=2, ensure_ascii=False))
 
 
+# ── 审批 ────────────────────────────────────────────────────────────
+
+async def _request_approval(tool_name: str, action: str, permission: str, session_id: str):
+    """向 Gateway 发送审批请求并等待结果。"""
+    import httpx
+    try:
+        from app.config import config as app_config
+        url = f"http://{app_config.gateway_host}:{app_config.gateway_port}/api/approvals/pending"
+        # 先检查是否已有待审批的
+        resp = httpx.get(url, timeout=3)
+        already = [p for p in resp.json() if p["session_id"] == session_id
+                   and p["tool"] == tool_name] if resp.status_code == 200 else []
+        if already:
+            # 已有相同审批在队列中，跳过
+            logger.info(f"审批已在队列中: {tool_name}")
+            return
+    except Exception:
+        pass
+
+    # 向 Gateway 提交审批
+    try:
+        from app.config import config as app_config
+        agent_name = os.getenv("CREWCRAFT_AGENT_NAME", "unknown")
+        httpx.post(
+            f"http://{app_config.gateway_host}:{app_config.gateway_port}/api/approvals/submit",
+            json={
+                "agent": agent_name,
+                "session_id": session_id,
+                "tool": tool_name,
+                "action": action,
+                "permission": permission,
+            },
+            timeout=3,
+        )
+        logger.info(f"已提交审批: {tool_name} ({permission})")
+    except Exception as e:
+        logger.warning(f"提交审批失败: {e}")
+
+
 # ── Agent 运行器（封装 deepagents）───────────────────────────────────────
 
 async def run_task(session_id: str, content: str, ws, config: dict) -> str:
@@ -129,6 +168,17 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
                 chunk = event.get("data", {}).get("chunk")
                 if chunk and hasattr(chunk, "content") and chunk.content:
                     full_response += chunk.content
+
+            # 工具执行前 — 权限检查
+            elif kind == "on_tool_start":
+                tool_name = event.get("name", "unknown")
+                tool_input = event.get("data", {}).get("input", {})
+                # 查工具权限
+                from .tools import registry
+                tool = registry.get(tool_name)
+                if tool and tool.permission in ("write", "dangerous"):
+                    action = str(tool_input.get(list(tool_input.keys())[0], "")) if tool_input else str(tool_input)
+                    await _request_approval(tool_name, action, tool.permission, session_id)
 
             # 记录工具调用
             elif kind == "on_tool_end":
