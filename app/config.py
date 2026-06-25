@@ -54,6 +54,10 @@ class Config:
         self.agent_port_start = int(get("CREWCRAFT_AGENT_PORT_START", "9001"))
         self.agent_idle_timeout = int(get("CREWCRAFT_AGENT_IDLE_TIMEOUT", "300"))
         self.agent_heartbeat_interval = int(get("CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "15"))
+        # 协作监督
+        self.collab_max_rounds = int(get("CREWCRAFT_COLLAB_MAX_ROUNDS", "10"))
+        self.collab_max_depth = int(get("CREWCRAFT_COLLAB_MAX_DEPTH", "3"))
+        self.collab_timeout = int(get("CREWCRAFT_COLLAB_TIMEOUT", "60"))
         # 日志
         self.log_level = get("CREWCRAFT_LOG_LEVEL", "INFO")
 

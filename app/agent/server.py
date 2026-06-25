@@ -187,7 +187,44 @@ def _build_tools(tools_list: list[str]) -> list:
     return tools
 
 
+# ── Agent 间通信 ────────────────────────────────────────────────────
+
 _current_task_id = ""
+_current_ws = None
+_current_session_id = ""
+
+
+def _handle_agent_message(msg: dict):
+    """处理来自其他 Agent 的点对点消息。"""
+    from_agent = msg.get("from", "unknown")
+    content = msg.get("content", "")
+    logger.info(f"Agent 消息 from={from_agent}: {content[:100]}")
+
+
+def _handle_agent_broadcast(msg: dict):
+    """处理来自其他 Agent 的广播。"""
+    from_agent = msg.get("from", "unknown")
+    content = msg.get("content", "")
+    logger.info(f"Agent 广播 from={from_agent}: {content[:100]}")
+
+
+async def send_to_agent(to_agent: str, content: str, context: dict = None) -> bool:
+    """向另一个 Agent 发送消息。返回是否成功。"""
+    if _current_ws is None:
+        logger.warning("未连接，无法发送 Agent 间消息")
+        return False
+    try:
+        await _current_ws.send(json.dumps({
+            "type": "agent_message",
+            "to": to_agent,
+            "session_id": _current_session_id,
+            "content": content,
+            "context": context or {},
+        }))
+        return True
+    except Exception as e:
+        logger.error(f"发送 Agent 消息失败: {e}")
+        return False
 
 
 async def _fallback_run(
@@ -254,9 +291,20 @@ async def agent_loop():
                 if msg_type == "ping":
                     await ws.send(json.dumps({"type": "pong"}))
 
+                elif msg_type == "agent_message":
+                    _handle_agent_message(msg)
+
+                elif msg_type == "agent_broadcast":
+                    _handle_agent_broadcast(msg)
+
+                elif msg_type == "supervisor":
+                    logger.warning(f"监督者介入: {msg.get('reason')}")
+
                 elif msg_type == "task":
                     _current_task_id = msg.get("task_id", "")
-                    session_id = msg.get("session_id", str(uuid.uuid4()))
+                    _current_session_id = msg.get("session_id", str(uuid.uuid4()))
+                    _current_ws = ws
+                    session_id = _current_session_id
                     content = msg.get("content", "")
 
                     logger.info(f"Received task {_current_task_id}")
