@@ -47,13 +47,15 @@ class BaseChannel(ABC):
 多 Channel 场景下需要一个统一的消息管理器，解耦 Channel 和 Agent：
 
 ```
-Channel A (微信) ──→ InboundMsg ──→ MsgManager ──→ Orchestrator
-Channel B (钉钉) ──→ InboundMsg ──→    │              │
-Channel C (飞书) ──→ InboundMsg ──→    │          Agent 执行
-                                       │              │
-Channel A ←── OutboundMsg ←── MsgManager ←── 结果 ───┘
-Channel B ←── OutboundMsg ←──
-Channel C ←── OutboundMsg ←──
+CLI ────────────→ InboundMsg ──→ MsgManager ──→ Orchestrator
+WeChat ──────────→ InboundMsg ──→    │              │
+DingTalk ────────→ InboundMsg ──→    │          Agent 执行
+Feishu ──────────→ InboundMsg ──→    │              │
+                                     │              │
+CLI ←──── OutboundMsg ←── MsgManager ←── 结果 ─────┘
+WeChat ←── OutboundMsg ←──
+DingTalk ← OutboundMsg ←──
+Feishu ←── OutboundMsg ←──
 ```
 
 **优势：**
@@ -125,7 +127,10 @@ app/channels/
 ├── __init__.py      # ChannelManager, 注册表
 ├── base.py          # BaseChannel 抽象
 ├── bus.py           # MsgManager — 消息总线（InboundMsg/OutboundMsg）
+├── cli.py           # CLI REPL Channel（终端交互）
 ├── wechat.py        # 微信（HTTP 长轮询）
 ├── dingtalk.py      # 钉钉（WebSocket）
 └── feishu.py        # 飞书（WebSocket）
 ```
+
+CLI REPL 也统一为 Channel，和其他平台平级，不再直接调 task API。
