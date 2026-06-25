@@ -110,20 +110,47 @@ class OutboundMsg:
 
 ### 配置
 
-```env
-CREWCRAFT_CHANNELS=wechat,dingtalk,feishu
+使用 `data/channels.json` 统一管理，支持多实例：
 
-# 微信
-CREWCRAFT_WECHAT_TOKEN=        # 扫码登录后自动获取
-
-# 钉钉
-CREWCRAFT_DINGTALK_CLIENT_ID=
-CREWCRAFT_DINGTALK_CLIENT_SECRET=
-
-# 飞书
-CREWCRAFT_FEISHU_APP_ID=
-CREWCRAFT_FEISHU_APP_SECRET=
+```json
+{
+  "channels": [
+    {
+      "type": "wechat",
+      "name": "wechat-personal",
+      "enabled": true,
+      "allow_from": ["*"],
+      "token": ""
+    },
+    {
+      "type": "dingtalk",
+      "name": "dingtalk-support",
+      "enabled": true,
+      "client_id": "xxx",
+      "client_secret": "xxx"
+    },
+    {
+      "type": "feishu",
+      "name": "feishu-internal",
+      "enabled": false,
+      "app_id": "xxx",
+      "app_secret": "xxx"
+    },
+    {
+      "type": "feishu",
+      "name": "feishu-external",
+      "enabled": true,
+      "app_id": "yyy",
+      "app_secret": "yyy"
+    }
+  ]
+}
 ```
+
+- 同一平台可配多个实例（如两个飞书账号）
+- `enabled: false` 的跳过不启动
+- `name` 作为 channel 标识，用于 MsgManager 路由
+- 无需 `CREWCRAFT_CHANNELS` 环境变量
 
 ### 使用
 
