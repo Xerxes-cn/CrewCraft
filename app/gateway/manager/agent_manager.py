@@ -79,33 +79,70 @@ class AgentManager:
 
     # ── 配置持久化 ────────────────────────────────────────────────────
 
+    def _config_dir(self, name: str) -> Path:
+        """返回 data/agents/{name}/ 目录（自动创建）。"""
+        d = self.agents_dir / name
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
     def _config_path(self, name: str) -> Path:
-        return self.agents_dir / f"{name}.json"
+        return self._config_dir(name) / "config.json"
+
+    def _migrate_old_config(self, name: str):
+        """迁移旧格式 data/agents/{name}.json → data/agents/{name}/config.json"""
+        old = self.agents_dir / f"{name}.json"
+        new = self._config_path(name)
+        if old.exists() and not new.exists():
+            self._config_dir(name)  # 确保目录存在
+            old.rename(new)
+            logger.info(f"已迁移配置: {old} → {new}")
+            # 同时迁移 prompt
+            old_prompt = self.agents_dir / f"{name}.prompt.md"
+            if old_prompt.exists():
+                new_prompt = self._config_dir(name) / "prompt.md"
+                old_prompt.rename(new_prompt)
 
     def load_config(self, name: str) -> Optional[AgentConfig]:
         path = self._config_path(name)
         if not path.exists():
-            return None
+            self._migrate_old_config(name)
+            if not path.exists():
+                return None
         return AgentConfig.from_dict(json.loads(path.read_text()))
 
     def save_config(self, config: AgentConfig) -> None:
+        self._config_dir(config.name)
         self._config_path(config.name).write_text(
             json.dumps(config.to_dict(), indent=2, ensure_ascii=False))
 
     def delete_config(self, name: str) -> bool:
-        path = self._config_path(name)
-        if not path.exists():
-            return False
-        path.unlink()
-        return True
+        d = self.agents_dir / name
+        if d.exists():
+            import shutil
+            shutil.rmtree(d)
+            return True
+        return False
 
     def list_configs(self) -> list[AgentConfig]:
         configs = []
-        for path in sorted(self.agents_dir.glob("*.json")):
-            try:
-                configs.append(AgentConfig.from_dict(json.loads(path.read_text())))
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"跳过无效配置 {path}: {e}")
+        for d in sorted(self.agents_dir.iterdir()):
+            if d.is_dir():
+                path = d / "config.json"
+                if path.exists():
+                    try:
+                        configs.append(AgentConfig.from_dict(json.loads(path.read_text())))
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.warning(f"跳过无效配置 {path}: {e}")
+            elif d.suffix == ".json":
+                # 旧格式 — 尝试迁移
+                name = d.stem
+                self._migrate_old_config(name)
+                path = self._config_path(name)
+                if path.exists():
+                    try:
+                        configs.append(AgentConfig.from_dict(json.loads(path.read_text())))
+                    except (json.JSONDecodeError, KeyError) as e:
+                        logger.warning(f"跳过无效配置 {path}: {e}")
         return configs
 
     def next_port(self) -> int:
