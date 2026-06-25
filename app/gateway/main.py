@@ -6,6 +6,7 @@
 - 管理 Agent 生命周期和任务分派
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -33,13 +34,16 @@ async def lifespan(app: FastAPI):
     await ws_manager.start_server(config.ws_host, config.ws_port)
     logger.info(f"Agent WebSocket server at {config.ws_url}")
 
-    # 初始化内置编排器
     from .orchestrator import get_orchestrator
     get_orchestrator(agent_manager, ws_manager)
 
+    # 启动 Channels（IM 平台）
+    from app.channels import channel_manager
+    asyncio.create_task(channel_manager.start_all())
+
     yield
-    # 关闭：停止所有 Agent 和 WS 服务器
     logger.info("Shutting down gateway...")
+    await channel_manager.stop_all()
     await agent_manager.shutdown_all()
     await ws_manager.stop_server()
     logger.info("Gateway stopped")
