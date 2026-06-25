@@ -142,6 +142,20 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
     system_prompt = config.get("system_prompt", "")
     tools_list = config.get("tools", [])
 
+    # 加载公共 + 私有 Skill，注入 system_prompt
+    from app.agent.skills import inject_skills_to_prompt
+    system_prompt = inject_skills_to_prompt(system_prompt, config.get("name"), None)
+
+    # 连接 MCP Server，合并 MCP tools
+    from app.agent.mcp import mcp_client
+    try:
+        await mcp_client.connect_all(config.get("name", ""))
+        # 将 MCP tools 注册为工具 callables
+        for name, info in mcp_client.tools.items():
+            logger.info(f"MCP tool available: {name}")
+    except Exception as e:
+        logger.warning(f"MCP 连接失败: {e}")
+
     # 保存用户消息
     save_message(session_id, "user", content)
 
