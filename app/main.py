@@ -26,9 +26,11 @@ def main(
     if version:
         print(f"CrewCraft v{__version__}")
         raise typer.Exit()
-    # 无子命令 → 进入 REPL
-    from .cli.repl import repl
-    repl()
+    # 无子命令 → 启动 CLI Channel 作为本地交互终端
+    from app.channels.cli import CLIChannel
+    import asyncio
+    ch = CLIChannel({"name": "cli-default", "enabled": True})
+    asyncio.run(ch.start())
 
 
 def register_commands():
