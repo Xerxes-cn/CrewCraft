@@ -42,13 +42,47 @@ class BaseChannel(ABC):
     async def send(self, chat_id, content)  # 发送消息
 ```
 
-### 消息流
+### MsgManager 消息总线
+
+多 Channel 场景下需要一个统一的消息管理器，解耦 Channel 和 Agent：
 
 ```
-Channel.start() → 建立长连接 → 平台推送消息
-  → Channel 解析 → 创建 task → Orchestrator → Agent
-  → Channel.send(chat_id, result) → 平台 API → 用户
+Channel A (微信) ──→ InboundMsg ──→ MsgManager ──→ Orchestrator
+Channel B (钉钉) ──→ InboundMsg ──→    │              │
+Channel C (飞书) ──→ InboundMsg ──→    │          Agent 执行
+                                       │              │
+Channel A ←── OutboundMsg ←── MsgManager ←── 结果 ───┘
+Channel B ←── OutboundMsg ←──
+Channel C ←── OutboundMsg ←──
 ```
+
+**优势：**
+- Channel 不需要知道 task/orchestrator 的存在，只收发消息
+- 新增 Channel 只需实现收发，自动接入
+- 支持流式推送（Agent 边执行边通过 MsgManager 推送进度到 Channel）
+- 统一管理多 Channel 的会话和路由
+
+**消息结构：**
+
+```python
+@dataclass
+class InboundMsg:
+    channel: str        # "wechat" / "dingtalk" / "feishu"
+    sender_id: str      # 发送者 ID
+    chat_id: str        # 会话 ID
+    content: str        # 消息文本
+    media: list[str]    # 附件路径
+
+@dataclass
+class OutboundMsg:
+    channel: str        # 目标 Channel
+    chat_id: str
+    content: str        # 回复内容
+    media: list[str]    # 附件
+    metadata: dict      # 扩展信息（流式标记等）
+```
+
+### 消息流
 
 ### 各平台通信方式
 
@@ -90,6 +124,7 @@ crewcraft gateway start
 app/channels/
 ├── __init__.py      # ChannelManager, 注册表
 ├── base.py          # BaseChannel 抽象
+├── bus.py           # MsgManager — 消息总线（InboundMsg/OutboundMsg）
 ├── wechat.py        # 微信（HTTP 长轮询）
 ├── dingtalk.py      # 钉钉（WebSocket）
 └── feishu.py        # 飞书（WebSocket）
