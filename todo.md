@@ -19,3 +19,5 @@
 5 ✅ Agent 间协作通信 + Gateway 监督
 
 6 ✅ Human-in-the-Loop 操作审批 + Rich UI
+
+7 ✅ 外部 Agent Provider（Claude Code/Codex/OpenClaw）
