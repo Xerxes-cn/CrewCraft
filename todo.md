@@ -17,3 +17,5 @@
 4 ✅ 交互逻辑 命令太多了简化交互逻辑 cli启动之后进入长交互界面 类似claude code 把子命令修改为 斜杆命令
 
 5 ✅ Agent 间协作通信 + Gateway 监督
+
+6 ✅ Human-in-the-Loop 操作审批 + Rich UI
