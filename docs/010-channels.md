@@ -58,18 +58,30 @@ DingTalk ← OutboundMsg ←──
 Feishu ←── OutboundMsg ←──
 ```
 
+**审批路由：**
+
+Agent 执行需要用户确认时，通过 channel 信息找到正确的 Channel 推送审批：
+
+```
+用户 (微信) → task(channel=wechat, chat_id=xxx)
+  → Agent 调 shell_exec → 需要审批
+  → MsgManager 查 channel=wechat → OutboundMsg(wechat, chat_id, "确认执行?")
+  → 微信 Channel.send("确认执行?")
+  → 用户回复 "y" → InboundMsg → MsgManager → agent 继续
+```
+
 **优势：**
 - Channel 不需要知道 task/orchestrator 的存在，只收发消息
 - 新增 Channel 只需实现收发，自动接入
-- 支持流式推送（Agent 边执行边通过 MsgManager 推送进度到 Channel）
-- 统一管理多 Channel 的会话和路由
+- 流式推送 + 审批确认 都通过 MsgManager 统一路由
+- 审批知道找哪个 Channel 的用户确认
 
-**消息结构：**
+**消息结构（含 channel 路由信息）：**
 
 ```python
 @dataclass
 class InboundMsg:
-    channel: str        # "wechat" / "dingtalk" / "feishu"
+    channel: str        # "cli" / "wechat" / "dingtalk" / "feishu"
     sender_id: str      # 发送者 ID
     chat_id: str        # 会话 ID
     content: str        # 消息文本
@@ -81,8 +93,10 @@ class OutboundMsg:
     chat_id: str
     content: str        # 回复内容
     media: list[str]    # 附件
-    metadata: dict      # 扩展信息（流式标记等）
+    metadata: dict      # 扩展信息: {_progress, _stream_delta, _approval, ...}
 ```
+
+**Task 携带 channel 信息**，审批时 MsgManager 根据 `OutboundMsg.channel` 路由到正确的 Channel。
 
 ### 消息流
 
