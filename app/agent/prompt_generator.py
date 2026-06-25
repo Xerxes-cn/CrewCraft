@@ -73,23 +73,34 @@ and be thorough in your work.
 When you are unsure, ask clarifying questions rather than making assumptions."""
 
 
-def save_prompt(agent_name: str, prompt: str, data_dir: Path = None):
-    """将生成的提示词保存到 data/agents/{name}.prompt.md。"""
+def _prompt_dir(agent_name: str, data_dir: Path = None) -> Path:
+    """返回 data/agents/{name}/ 目录（自动创建）。"""
     if data_dir is None:
         from app.config import config
         data_dir = config.data_dir
-    agents_dir = data_dir / "agents"
-    agents_dir.mkdir(parents=True, exist_ok=True)
-    prompt_path = agents_dir / f"{agent_name}.prompt.md"
+    d = data_dir / "agents" / agent_name
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def save_prompt(agent_name: str, prompt: str, data_dir: Path = None):
+    """将生成的提示词保存到 data/agents/{name}/prompt.md。"""
+    prompt_path = _prompt_dir(agent_name, data_dir) / "prompt.md"
     prompt_path.write_text(prompt, encoding="utf-8")
 
 
 def load_prompt(agent_name: str, data_dir: Path = None) -> str | None:
-    """从 data/agents/{name}.prompt.md 加载提示词。找不到则返回 None。"""
+    """从 data/agents/{name}/prompt.md 加载提示词。找不到则返回 None。
+    也兼容旧格式 data/agents/{name}.prompt.md。"""
     if data_dir is None:
         from app.config import config
         data_dir = config.data_dir
-    prompt_path = data_dir / "agents" / f"{agent_name}.prompt.md"
-    if prompt_path.exists():
-        return prompt_path.read_text(encoding="utf-8")
+    # 新格式
+    new_path = data_dir / "agents" / agent_name / "prompt.md"
+    if new_path.exists():
+        return new_path.read_text(encoding="utf-8")
+    # 旧格式兼容
+    old_path = data_dir / "agents" / f"{agent_name}.prompt.md"
+    if old_path.exists():
+        return old_path.read_text(encoding="utf-8")
     return None
