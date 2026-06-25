@@ -5,7 +5,7 @@
 ---
 1 ✅ docker agent部署支持
 
-2 channels 支持 
+2 ✅ channels 支持（微信/钉钉/飞书 + CLI Channel + MsgManager） 
 
 3 ✅ 用户不应该指定 让那个agent干活 流程应该是
     1 用户发布了工作 
