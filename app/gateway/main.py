@@ -15,6 +15,7 @@ from app.config import config
 from .api.agents import router as agents_router
 from .api.tasks import router as tasks_router
 from .api.tools import router as tools_router
+from .api.approvals import router as approvals_router
 from .manager.agent_manager import agent_manager
 from .manager.ws_manager import ws_manager
 
@@ -53,6 +54,7 @@ app = FastAPI(
 app.include_router(agents_router)
 app.include_router(tasks_router)
 app.include_router(tools_router)
+app.include_router(approvals_router)
 
 
 @app.get("/api/health")

@@ -15,6 +15,7 @@ from .registry import register
         "command": {"type": "string", "description": "Shell command to execute"},
         "working_dir": {"type": "string", "description": "Working directory (default: current)"},
     },
+    permission="write",
 )
 async def shell_exec(command: str, working_dir: str = "."):
     """执行 Shell 命令并返回输出。"""
@@ -46,6 +47,7 @@ async def shell_exec(command: str, working_dir: str = "."):
         "path": {"type": "string", "description": "File or directory path"},
         "content": {"type": "string", "description": "Content to write (required for 'write' action)"},
     },
+    permission="write",
 )
 async def file_ops(action: str, path: str, content: str = ""):
     """文件操作助手。"""

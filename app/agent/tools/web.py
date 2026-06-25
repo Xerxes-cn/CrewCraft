@@ -13,6 +13,7 @@ from .registry import register
         "query": {"type": "string", "description": "Search query"},
         "max_results": {"type": "integer", "description": "Maximum number of results (default 5)"},
     },
+    permission="read",
 )
 async def web_search(query: str, max_results: int = 5):
     """使用 DuckDuckGo HTML 搜索网页（无需 API 密钥）。"""
@@ -55,6 +56,7 @@ async def web_search(query: str, max_results: int = 5):
         "method": {"type": "string", "description": "HTTP method: GET or POST"},
         "body": {"type": "string", "description": "Request body (for POST, JSON string)"},
     },
+    permission="read",
 )
 async def web_fetch(url: str, method: str = "GET", body: str = ""):
     """抓取 URL 并返回其文本内容。"""

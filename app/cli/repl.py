@@ -389,43 +389,105 @@ def _dispatch(cmd_line: str):
         print(f"  Internal error: unknown handler type for {group}")
 
 
-# ── REPL 循环 ─────────────────────────────────────────────────────────────
+# ── 审批监听 ─────────────────────────────────────────────────────────────
 
-def _prefill_input(prompt: str) -> str:
-    """读取输入，支持可选的 readline 预填支持。"""
+import threading
+
+_approval_running = False
+
+
+def _poll_approvals():
+    """后台线程：轮询 Gateway 的待审批队列，有新请求立即弹出。"""
+    global _approval_running
+    last_count = 0
+    while _approval_running:
+        try:
+            resp = httpx.get(f"{GATEWAY_URL}/api/approvals/pending", timeout=2)
+            if resp.status_code == 200:
+                pending = resp.json()
+                if pending and len(pending) > last_count:
+                    _show_approval_popup(pending[0])
+                last_count = len(pending)
+        except Exception:
+            pass
+        time.sleep(1)
+
+
+def _show_approval_popup(item: dict):
+    """在终端显示审批弹窗，等待用户决定。"""
+    print(f"\n  ╔{'═'*50}╗")
+    print(f"  ║ ⚠ 需要确认{'':38}║")
+    print(f"  ║ Agent: {item['agent']:<42}║")
+    print(f"  ║ 操作: {item['tool']:<42}║")
+    action = item['action'][:40]
+    print(f"  ║ 内容: {action:<42}║")
+    print(f"  ║ 级别: {item['permission']:<42}║")
+    print(f"  ║{'':50}║")
+    print(f"  ║ [Y] 允许  [N] 拒绝  [A] 全部允许{'':8}║")
+    print(f"  ╚{'═'*50}╝")
+
     try:
-        import readline
-        return input(prompt)
-    except ImportError:
-        return input(prompt)
+        choice = input("  > ").strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        choice = "n"
 
+    if choice in ("y", "yes"):
+        try:
+            httpx.post(f"{GATEWAY_URL}/api/approvals/{item['request_id']}/approve", timeout=3)
+            print("  ✓ 已批准\n")
+        except Exception:
+            print("  ✗ 审批通信失败\n")
+    elif choice == "a":
+        try:
+            httpx.post(f"{GATEWAY_URL}/api/approvals/{item['request_id']}/approve", timeout=3)
+            print("  ✓ 已批准（本次会话全部允许）\n")
+        except Exception:
+            print("  ✗ 审批通信失败\n")
+    else:
+        try:
+            httpx.post(f"{GATEWAY_URL}/api/approvals/{item['request_id']}/deny", timeout=3)
+            print("  ✗ 已拒绝\n")
+        except Exception:
+            print("  ✗ 审批通信失败\n")
+
+
+# ── REPL 循环 ─────────────────────────────────────────────────────────────
 
 def repl():
     """进入交互式 REPL 模式。"""
+    global _approval_running
+
     print("CrewCraft Interactive")
     print(f"Gateway: {GATEWAY_URL}")
     print("(start gateway first with: crewcraft gateway start)")
     print("Type /help for commands, or just describe your task. Ctrl+D to exit.\n")
 
-    while True:
-        try:
-            raw = _prefill_input("crewcraft> ").strip()
-        except (KeyboardInterrupt, EOFError):
-            print("\nGoodbye!")
-            break
+    # 启动后台审批监听线程
+    _approval_running = True
+    poll_thread = threading.Thread(target=_poll_approvals, daemon=True)
+    poll_thread.start()
 
-        if not raw:
-            continue
+    try:
+        while True:
+            try:
+                raw = input("crewcraft> ").strip()
+            except (KeyboardInterrupt, EOFError):
+                print("\nGoodbye!")
+                break
 
-        if raw == "?" or raw == "help":
-            print(HELP)
-            continue
+            if not raw:
+                continue
 
-        if raw.startswith("/"):
-            _dispatch(raw[1:])
-        else:
-            # 默认：作为任务交给编排器处理
-            cmd_task_run(raw)
+            if raw == "?" or raw == "help":
+                print(HELP)
+                continue
+
+            if raw.startswith("/"):
+                _dispatch(raw[1:])
+            else:
+                cmd_task_run(raw)
+    finally:
+        _approval_running = False
 
 
 if __name__ == "__main__":
