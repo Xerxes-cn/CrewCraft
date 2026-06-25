@@ -67,6 +67,11 @@ def get_queue_size() -> int:
     return len(_pending)
 
 
+def clear_queue():
+    """清空队列（测试用）。"""
+    _pending.clear()
+
+
 # ── 路由 ────────────────────────────────────────────────────────────
 
 class SubmitRequest(BaseModel):

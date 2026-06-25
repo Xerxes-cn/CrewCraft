@@ -79,24 +79,24 @@ class AgentManager:
 
     # ── 配置持久化 ────────────────────────────────────────────────────
 
-    def _config_dir(self, name: str) -> Path:
-        """返回 data/agents/{name}/ 目录（自动创建）。"""
+    def _config_dir(self, name: str, create: bool = False) -> Path:
+        """返回 data/agents/{name}/ 目录。create=True 时自动创建。"""
         d = self.agents_dir / name
-        d.mkdir(parents=True, exist_ok=True)
+        if create:
+            d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def _config_path(self, name: str) -> Path:
-        return self._config_dir(name) / "config.json"
+    def _config_path(self, name: str, create: bool = False) -> Path:
+        return self._config_dir(name, create=create) / "config.json"
 
     def _migrate_old_config(self, name: str):
         """迁移旧格式 data/agents/{name}.json → data/agents/{name}/config.json"""
         old = self.agents_dir / f"{name}.json"
-        new = self._config_path(name)
+        new = self._config_path(name, create=False)
         if old.exists() and not new.exists():
-            self._config_dir(name)  # 确保目录存在
+            self._config_dir(name, create=True)
             old.rename(new)
             logger.info(f"已迁移配置: {old} → {new}")
-            # 同时迁移 prompt
             old_prompt = self.agents_dir / f"{name}.prompt.md"
             if old_prompt.exists():
                 new_prompt = self._config_dir(name) / "prompt.md"
@@ -111,8 +111,8 @@ class AgentManager:
         return AgentConfig.from_dict(json.loads(path.read_text()))
 
     def save_config(self, config: AgentConfig) -> None:
-        self._config_dir(config.name)
-        self._config_path(config.name).write_text(
+        self._config_dir(config.name, create=True)
+        self._config_path(config.name, create=True).write_text(
             json.dumps(config.to_dict(), indent=2, ensure_ascii=False))
 
     def delete_config(self, name: str) -> bool:
@@ -120,6 +120,11 @@ class AgentManager:
         if d.exists():
             import shutil
             shutil.rmtree(d)
+            return True
+        # Also check old format
+        old = self.agents_dir / f"{name}.json"
+        if old.exists():
+            old.unlink()
             return True
         return False
 
