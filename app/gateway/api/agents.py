@@ -20,6 +20,7 @@ class AgentCreate(BaseModel):
     name: str
     model: str
     description: str = ""
+    provider: str = ""
     idle_timeout: int = 300
 
 
@@ -27,6 +28,7 @@ class AgentResponse(BaseModel):
     name: str
     model: str
     description: str
+    provider: str
     system_prompt: str
     tools: list[str]
     port: int
@@ -37,12 +39,11 @@ class AgentResponse(BaseModel):
 
 def _agent_to_response(config: AgentConfig) -> AgentResponse:
     return AgentResponse(
-        name=config.name,
-        model=config.model,
+        name=config.name, model=config.model,
         description=config.description,
+        provider=config.provider or config.agent_deploy_mode,
         system_prompt=config.system_prompt,
-        tools=config.tools,
-        port=config.port,
+        tools=config.tools, port=config.port,
         idle_timeout=config.idle_timeout,
         online=agent_manager.is_online(config.name),
         created_at=config.created_at,
@@ -62,17 +63,15 @@ async def create_agent(body: AgentCreate):
         raise HTTPException(status_code=409, detail=f"Agent '{body.name}' already exists")
 
     port = agent_manager.next_port()
-    config = AgentConfig(
-        name=body.name,
-        model=body.model,
+    agent_config = AgentConfig(
+        name=body.name, model=body.model,
         description=body.description,
-        port=port,
-        idle_timeout=body.idle_timeout,
+        provider=body.provider,
+        port=port, idle_timeout=body.idle_timeout,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
-    agent_manager.save_config(config)
+    agent_manager.save_config(agent_config)
 
-    # 生成并保存系统提示词
     if body.description:
         from app.agent.prompt_generator import generate_prompt, save_prompt
         prompt = generate_prompt(body.description, body.model)
