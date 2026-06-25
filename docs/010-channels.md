@@ -172,6 +172,9 @@ app/channels/
 ├── wechat.py        # 微信（HTTP 长轮询）
 ├── dingtalk.py      # 钉钉（WebSocket）
 └── feishu.py        # 飞书（WebSocket）
+
+data/
+└── channels.json    # Channel 配置文件（多实例）
 ```
 
 CLI REPL 也统一为 Channel，和其他平台平级，不再直接调 task API。
