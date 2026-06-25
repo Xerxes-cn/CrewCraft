@@ -15,3 +15,5 @@
     5 补充: 当有多个任务的时候 也是有gateway的agent去管理子agent的任务, 一个个的给子agent分派
 
 4 ✅ 交互逻辑 命令太多了简化交互逻辑 cli启动之后进入长交互界面 类似claude code 把子命令修改为 斜杆命令
+
+5 ✅ Agent 间协作通信 + Gateway 监督
