@@ -19,6 +19,7 @@ from .agent_manager import agent_manager as _am
 logger = logging.getLogger(__name__)
 
 TASK_TIMEOUT = 300  # 秒
+MAX_MISSED_PINGS = 3  # 连续丢失心跳次数后踢下线
 
 
 class WSManager:
@@ -29,6 +30,7 @@ class WSManager:
         self._heartbeats: dict[str, asyncio.Task] = {}
         self._pending_tasks: dict[str, asyncio.Future] = {}
         self._last_beat: dict[str, float] = {}
+        self._missed_pings: dict[str, int] = {}
         self._server = None
         # 协作会话跟踪 {session_id: {round, chain, started_at, last_activity, seen_contents}}
         self._collab_sessions: dict[str, dict] = {}
@@ -104,6 +106,7 @@ class WSManager:
 
                 if msg_type == "pong":
                     self._last_beat[agent_name] = loop_time()
+                    self._missed_pings.pop(agent_name, None)  # pong 收到，重置丢失计数
 
                 elif msg_type == "task_update":
                     task_id = msg.get("task_id")
@@ -235,6 +238,7 @@ class WSManager:
         """清理 Agent 连接。"""
         self._connections.pop(name, None)
         self._last_beat.pop(name, None)
+        self._missed_pings.pop(name, None)
         _am.set_online(name, False)
 
         hb = self._heartbeats.pop(name, None)
@@ -244,7 +248,7 @@ class WSManager:
     # ── 心跳 ────────────────────────────────────────────────────────
 
     async def _heartbeat_loop(self, name: str, ws: ServerConnection):
-        """发送定期 ping 并检测死连接。"""
+        """发送定期 ping 并检测死连接。连续丢失 3 次心跳则踢下线。"""
         try:
             while name in self._connections:
                 await asyncio.sleep(config.agent_heartbeat_interval)
@@ -253,11 +257,29 @@ class WSManager:
 
                 try:
                     await ws.send(json.dumps({"type": "ping"}))
+                    self._missed_pings[name] = 0
                 except websockets.exceptions.ConnectionClosed:
-                    logger.warning(f"Heartbeat failed for {name}")
-                    break
+                    self._missed_pings[name] = self._missed_pings.get(name, 0) + 1
+                    logger.warning(
+                        f"Agent {name} heartbeat lost "
+                        f"({self._missed_pings[name]}/{MAX_MISSED_PINGS})"
+                    )
+                    if self._missed_pings[name] >= MAX_MISSED_PINGS:
+                        logger.warning(
+                            f"Agent {name} unresponsive after {MAX_MISSED_PINGS} missed pings, kicking"
+                        )
+                        break
+
         except asyncio.CancelledError:
             pass
+
+        # 心跳循环退出 → 踢下线
+        if name in self._connections:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+            self._unregister(name)
 
     # ── 任务分派 ────────────────────────────────────────────────────
 

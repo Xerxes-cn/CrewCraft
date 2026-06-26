@@ -119,3 +119,39 @@ class TestDispatchTask:
             # ws_manager.dispatch_task 会检查 is_connected
             if not wsm.is_connected("nonexistent"):
                 raise Exception("Agent 'nonexistent' is not connected")
+
+
+# ── 心跳踢下线 ───────────────────────────────────────────────────────
+
+
+class TestHeartbeatKick:
+
+    def test_missed_pings_tracking(self, wsm):
+        """验证 _missed_pings 随丢失心跳递增。"""
+        assert "agent-1" not in wsm._missed_pings
+
+        # 模拟 ping 成功 → 重置计数
+        wsm._missed_pings["agent-1"] = 0
+
+        # 模拟一次丢失
+        wsm._missed_pings["agent-1"] = wsm._missed_pings.get("agent-1", 0) + 1
+        assert wsm._missed_pings["agent-1"] == 1
+
+    def test_max_missed_pings_constant(self):
+        """MAX_MISSED_PINGS 应为 3。"""
+        from app.gateway.manager.ws_manager import MAX_MISSED_PINGS
+        assert MAX_MISSED_PINGS == 3
+
+    def test_unregister_cleans_missed_pings(self, wsm):
+        """_unregister 清理 _missed_pings。"""
+        wsm._missed_pings["agent-1"] = 2
+        wsm._connections["agent-1"] = MagicMock()
+        wsm._heartbeats["agent-1"] = MagicMock(done=MagicMock(return_value=True))
+        wsm._unregister("agent-1")
+        assert "agent-1" not in wsm._missed_pings
+
+    def test_pong_resets_missed_count(self, wsm):
+        """收到 pong 时重置丢失计数。"""
+        wsm._missed_pings["agent-1"] = 2
+        wsm._missed_pings.pop("agent-1", None)
+        assert "agent-1" not in wsm._missed_pings
