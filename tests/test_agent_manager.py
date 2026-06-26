@@ -1,5 +1,6 @@
 """AgentManager CRUD 与配置持久化测试。"""
 
+import json
 import pytest
 
 from app.gateway.manager.agent_manager import AgentConfig
@@ -66,9 +67,28 @@ class TestListAndDelete:
         assert names == {"a", "b"}
 
     def test_delete_existing(self, agent_manager):
+        """软删除：移到 deleted/ 目录，原路径不可再加载。"""
         agent_manager.save_config(AgentConfig(name="x", model="gpt"))
         assert agent_manager.delete_config("x") is True
         assert agent_manager.load_config("x") is None
+        # 确认软删除目录存在
+        deleted = agent_manager.agents_dir / "deleted"
+        assert deleted.exists()
+        # 确认移到了带时间戳的目录
+        moved = [d for d in deleted.iterdir() if d.name.startswith("x_")]
+        assert len(moved) == 1
+        assert (moved[0] / "config.json").exists()
+        assert json.loads((moved[0] / "config.json").read_text())["name"] == "x"
+
+    def test_delete_duplicate_name_no_conflict(self, agent_manager):
+        """同名 Agent 删除两次不会冲突（时间戳不同）。"""
+        agent_manager.save_config(AgentConfig(name="dup", model="gpt"))
+        assert agent_manager.delete_config("dup") is True
+        agent_manager.save_config(AgentConfig(name="dup", model="claude"))
+        assert agent_manager.delete_config("dup") is True
+        deleted = agent_manager.agents_dir / "deleted"
+        moved = [d for d in deleted.iterdir() if d.name.startswith("dup_")]
+        assert len(moved) == 2  # 两条独立记录
 
     def test_delete_nonexistent_returns_false(self, agent_manager):
         assert agent_manager.delete_config("nonexistent") is False

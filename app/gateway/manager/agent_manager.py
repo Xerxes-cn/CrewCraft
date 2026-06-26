@@ -100,12 +100,23 @@ class AgentManager:
             json.dumps(config.to_dict(), indent=2, ensure_ascii=False))
 
     def delete_config(self, name: str) -> bool:
+        """软删除：将配置移到 data/agents/deleted/{name}_{timestamp}_{unique}/ 目录。
+
+        时间戳+随机后缀避免同名 Agent 重复删除时的冲突。
+        """
         d = self.agents_dir / name
-        if d.exists():
-            import shutil
-            shutil.rmtree(d)
-            return True
-        return False
+        if not d.exists():
+            return False
+        import shutil
+        import uuid
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        uid = uuid.uuid4().hex[:6]
+        deleted_dir = self.agents_dir / "deleted" / f"{name}_{ts}_{uid}"
+        deleted_dir.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(d), str(deleted_dir))
+        logger.info(f"已软删除 Agent '{name}' → {deleted_dir}")
+        return True
 
     def list_configs(self) -> list[AgentConfig]:
         configs = []
