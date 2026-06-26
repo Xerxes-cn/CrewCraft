@@ -6,7 +6,7 @@
 import asyncio
 import json
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 
 @pytest.fixture
@@ -118,4 +118,4 @@ class TestDispatchTask:
         with pytest.raises(Exception):
             # ws_manager.dispatch_task 会检查 is_connected
             if not wsm.is_connected("nonexistent"):
-                raise Exception(f"Agent 'nonexistent' is not connected")
+                raise Exception("Agent 'nonexistent' is not connected")

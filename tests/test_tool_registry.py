@@ -4,7 +4,7 @@ import asyncio
 import pytest
 
 from app.agent.tools.registry import (
-    Tool, ToolRegistry, registry, register,
+    Tool, registry, register,
     get_tool_callable, get_tool_callables, _sync_wrapper,
 )
 
@@ -177,7 +177,6 @@ class TestToolCallable:
 
     def test_get_sync_tool(self):
         """同步工具直接返回原函数。"""
-        tool = registry.get("calculator")
         fn = get_tool_callable("calculator")
         assert fn is not None
         assert callable(fn)

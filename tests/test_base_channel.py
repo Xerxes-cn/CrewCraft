@@ -8,7 +8,7 @@ import asyncio
 import pytest
 
 from app.channels.base import BaseChannel
-from app.channels.bus import MsgManager, msg_manager as global_mgr
+from app.channels.bus import msg_manager as global_mgr
 from app.models import InboundMsg, OutboundMsg
 
 

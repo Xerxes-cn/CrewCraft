@@ -1,6 +1,5 @@
 """AgentProvider 抽象基类。"""
 
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path

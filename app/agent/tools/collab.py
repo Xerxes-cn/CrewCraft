@@ -1,7 +1,5 @@
 """Agent 间协作工具。"""
 
-import json
-
 from .registry import register
 
 

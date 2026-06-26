@@ -3,10 +3,8 @@
 Agent 启动时自动连接 MCP Server，将其 tools 注册到工具列表。
 """
 
-import asyncio
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any
 

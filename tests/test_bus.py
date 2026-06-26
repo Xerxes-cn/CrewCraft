@@ -1,6 +1,5 @@
 """MsgManager 消息总线测试 — 覆盖发布/消费/路由/format 行为。"""
 
-import asyncio
 import pytest
 
 from app.channels.bus import MsgManager

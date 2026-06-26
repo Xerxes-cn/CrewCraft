@@ -6,7 +6,7 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 
 
 # ── 测试用 FastAPI app（不含 lifespan，无副作用）──────────────────────────

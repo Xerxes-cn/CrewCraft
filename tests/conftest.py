@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models import InboundMsg, OutboundMsg, TaskRequest, ChannelConfig
+from app.models import InboundMsg, OutboundMsg, TaskRequest
 
 
 # ── 环境与目录 ──────────────────────────────────────────────────────────

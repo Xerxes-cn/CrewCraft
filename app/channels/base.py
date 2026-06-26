@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.models import InboundMsg, OutboundMsg, ChannelConfig
+from app.models import InboundMsg, OutboundMsg
 from .bus import msg_manager
 
 

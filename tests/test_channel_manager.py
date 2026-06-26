@@ -1,7 +1,6 @@
 """Channel 管理模块测试 — 注册、加载、启停。"""
 
 import json
-import pytest
 from unittest.mock import patch
 
 from app.channels import register_channel_type, _CHANNEL_TYPES

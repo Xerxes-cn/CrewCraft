@@ -15,7 +15,6 @@ import httpx
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 from rich import box
 
 from app.config import config
@@ -367,7 +366,6 @@ _approval_running = False
 
 def _poll_approvals():
     """后台线程：轮询 Gateway 待审批队列。"""
-    global _approval_running
     last_count = 0
     while _approval_running:
         try:

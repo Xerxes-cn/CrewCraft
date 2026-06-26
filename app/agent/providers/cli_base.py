@@ -1,9 +1,7 @@
 """CLI Provider 基类 — 用于外部命令行 Agent 工具。"""
 
 import asyncio
-import json
 import logging
-import os
 import tempfile
 from pathlib import Path
 

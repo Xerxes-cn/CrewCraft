@@ -4,7 +4,6 @@
 """
 
 import concurrent.futures
-import pytest
 
 from app.gateway.api.approvals import (
     add_approval, get_pending, resolve_approval,

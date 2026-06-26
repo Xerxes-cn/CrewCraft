@@ -3,12 +3,11 @@
 import asyncio
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 from app.config import config as app_config
-from app.models import ChannelConfig, InboundMsg, OutboundMsg
-from .bus import msg_manager, InboundMsg as _InboundMsg, OutboundMsg as _OutboundMsg
+from app.models import OutboundMsg
+from .bus import msg_manager
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +137,3 @@ class ChannelManager:
 
 # 单例
 channel_manager = ChannelManager()
-
-
-# 导入内置类型
-from .bus import InboundMsg, OutboundMsg, msg_manager  # noqa: E402, F401
