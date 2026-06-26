@@ -100,17 +100,20 @@ async def list_pending(session: str = Query(None)):
     return get_pending(session)
 
 
+class ResolveRequest(BaseModel):
+    response: str
+
+
 @router.post("/{request_id}/resolve")
-async def resolve(request_id: str, body: dict = {}):
+async def resolve(request_id: str, body: ResolveRequest):
     """解决交互 — response 值取决于 type：
     - confirm: "approved" 或 "denied"
     - select: 选中的选项字符串
     - input: 用户输入的文本
     """
-    response = body.get("response", "")
-    if not response:
+    if not body.response:
         raise HTTPException(status_code=400, detail="需要 response 字段")
-    result = resolve_interaction(request_id, response)
+    result = resolve_interaction(request_id, body.response)
     if result is None:
         raise HTTPException(status_code=404, detail="交互请求未找到或已处理")
     return result

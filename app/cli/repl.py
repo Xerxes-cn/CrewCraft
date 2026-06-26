@@ -38,7 +38,6 @@ CrewCraft Interactive Mode — 输入命令或直接描述你的任务。
     /agent list
     /agent inspect <name>
     /agent delete <name>
-    /agent generate-prompt <name> [--desc <text>]
 
     /task run <content>              自动编排
     /task run <content> --agent <a>  指定 Agent
@@ -77,7 +76,6 @@ def _warn(msg: str):
 # ── HTTP 辅助 ─────────────────────────────────────────────────────────
 
 def _api(method: str, path: str, **kwargs):
-    """向 Gateway 发送 HTTP 请求。"""
     url = f"{GATEWAY_URL}{path}"
     try:
         resp = getattr(httpx, method)(url, **kwargs)
@@ -97,7 +95,6 @@ def _api(method: str, path: str, **kwargs):
 
 
 def _parse_args(args_str: str) -> tuple[dict, str]:
-    """解析 --key value 风格的参数。返回 (flags_dict, remaining_text)。"""
     flags = {}
     remaining = []
     parts = shlex.split(args_str)
@@ -188,31 +185,17 @@ def cmd_agent_delete(args_str: str):
         _ok(f"Agent '{name}' deleted")
 
 
-def cmd_agent_generate_prompt(args_str: str):
-    flags, rest = _parse_args(args_str)
-    name = rest.split()[0] if rest else flags.get("name", "")
-    desc = flags.get("desc", rest[len(name):].strip() if len(rest) > len(name) else "")
-    if not name:
-        _err("Usage: /agent generate-prompt <name> --desc <text>")
-        return
-    r = _api("post", f"/api/agents/{name}/generate-prompt", json={"description": desc})
-    if r:
-        _ok(f"Prompt regenerated for '{name}' ({len(r.get('prompt', ''))} chars)")
-
-
 AGENT_CMDS = {
     "create": cmd_agent_create,
     "list": cmd_agent_list,
     "inspect": cmd_agent_inspect,
     "delete": cmd_agent_delete,
-    "generate-prompt": cmd_agent_generate_prompt,
 }
 
 
 # ── Task 命令 ───────────────────────────────────────────────────────
 
 def _poll_task(task_id: str):
-    """轮询任务状态直到完成。"""
     with console.status(f"[bold]Task {task_id} running...[/bold]"):
         while True:
             try:
@@ -359,63 +342,87 @@ def cmd_tool_list(args_str: str):
         pass
 
 
-# ── 审批监听 ─────────────────────────────────────────────────────────
+# ── 交互监听 ─────────────────────────────────────────────────────────
 
-_approval_running = False
+_interaction_running = False
 
 
-def _poll_approvals():
-    """后台线程：轮询 Gateway 待审批队列。"""
+def _resolve_interaction(item: dict, response: str):
+    httpx.post(f"{GATEWAY_URL}/api/interactions/{item['request_id']}/resolve",
+               json={"response": response}, timeout=3)
+
+
+def _poll_interactions():
     last_count = 0
-    while _approval_running:
+    while _interaction_running:
         try:
-            resp = httpx.get(f"{GATEWAY_URL}/api/approvals/pending", timeout=2)
+            resp = httpx.get(f"{GATEWAY_URL}/api/interactions/pending", timeout=2)
             if resp.status_code == 200:
                 pending = resp.json()
                 if pending and len(pending) > last_count:
-                    _show_approval_popup(pending[0])
+                    _show_interaction(pending[0])
                 last_count = len(pending)
         except Exception:
             pass
         time.sleep(1)
 
 
-def _show_approval_popup(item: dict):
-    """Rich 风格的审批弹窗。"""
-    perm_color = {"write": "yellow", "dangerous": "red"}.get(item["permission"], "white")
-    content = (
-        f"Agent: [bold]{item['agent']}[/bold]\n"
-        f"Tool:  [bold]{item['tool']}[/bold]\n"
-        f"Level: [{perm_color}]{item['permission']}[/{perm_color}]\n\n"
-        f"[dim]{item['action'][:200]}[/dim]"
-    )
-    console.print()
-    console.print(Panel(content, title="[bold yellow]⚠ 需要确认[/bold yellow]", border_style="yellow"))
-    console.print("  [[green]Y[/green]] 允许  [[red]N[/red]] 拒绝  [[blue]A[/blue]] 全部允许")
+def _show_interaction(item: dict):
+    itype = item.get("type", "confirm")
+    agent = item.get("agent", "unknown")
+    prompt = item.get("prompt", "")
 
-    try:
-        choice = console.input("  [bold]> [/bold]").strip().lower()
-    except (KeyboardInterrupt, EOFError):
-        choice = "n"
+    if itype == "confirm":
+        console.print()
+        console.print(Panel(
+            f"Agent: [bold]{agent}[/bold]\n\n{prompt[:500]}",
+            title="[bold yellow]⚠ 需要确认[/bold yellow]", border_style="yellow"))
+        console.print("  [[green]Y[/green]] 允许  [[red]N[/red]] 拒绝")
+        try:
+            choice = console.input("  [bold]> [/bold]").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            choice = "n"
+        resp = "approved" if choice in ("y", "yes") else "denied"
+        try:
+            _resolve_interaction(item, resp)
+            console.print(f"  [green]✓ {resp}[/green]\n")
+        except Exception:
+            console.print("  [red]✗ 通信失败[/red]\n")
 
-    if choice in ("y", "yes"):
+    elif itype == "select":
+        options = item.get("options", [])
+        opts_text = "\n".join(f"  [[green]{i+1}[/green]] {o}" for i, o in enumerate(options))
+        console.print()
+        console.print(Panel(
+            f"Agent: [bold]{agent}[/bold]\n\n{prompt[:300]}\n\n{opts_text}",
+            title="[bold cyan]? 请选择[/bold cyan]", border_style="cyan"))
         try:
-            httpx.post(f"{GATEWAY_URL}/api/approvals/{item['request_id']}/approve", timeout=3)
-            _ok("已批准")
-        except Exception:
-            _err("审批通信失败")
-    elif choice == "a":
+            choice = console.input("  [bold]> [/bold]").strip()
+        except (KeyboardInterrupt, EOFError):
+            choice = ""
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            try:
+                _resolve_interaction(item, options[int(choice) - 1])
+                console.print("  [green]✓ 已选择[/green]\n")
+            except Exception:
+                console.print("  [red]✗ 通信失败[/red]\n")
+        else:
+            console.print("  [red]✗ 无效选择[/red]\n")
+
+    elif itype == "input":
+        console.print()
+        console.print(Panel(
+            f"Agent: [bold]{agent}[/bold]\n\n{prompt[:500]}",
+            title="[bold cyan]? 需要输入[/bold cyan]", border_style="cyan"))
         try:
-            httpx.post(f"{GATEWAY_URL}/api/approvals/{item['request_id']}/approve", timeout=3)
-            _ok("已批准（本次会话全部允许）")
-        except Exception:
-            _err("审批通信失败")
-    else:
+            user_input = console.input("  [bold]> [/bold]").strip()
+        except (KeyboardInterrupt, EOFError):
+            user_input = ""
         try:
-            httpx.post(f"{GATEWAY_URL}/api/approvals/{item['request_id']}/deny", timeout=3)
-            _err("已拒绝")
+            _resolve_interaction(item, user_input)
+            console.print("  [green]✓ 已回复[/green]\n")
         except Exception:
-            _err("审批通信失败")
+            console.print("  [red]✗ 通信失败[/red]\n")
 
 
 # ── 命令路由 ─────────────────────────────────────────────────────────
@@ -462,8 +469,7 @@ ROUTER = {
 # ── REPL 入口 ────────────────────────────────────────────────────────
 
 def repl():
-    """进入交互式 REPL 模式。"""
-    global _approval_running
+    global _interaction_running
 
     console.print(Panel.fit(
         "[bold]CrewCraft Interactive[/bold]\n"
@@ -473,9 +479,8 @@ def repl():
     ))
     console.print("Type [bold]/help[/bold] for commands, or just describe your task. Ctrl+D to exit.\n")
 
-    # 启动后台审批监听
-    _approval_running = True
-    poll_thread = threading.Thread(target=_poll_approvals, daemon=True)
+    _interaction_running = True
+    poll_thread = threading.Thread(target=_poll_interactions, daemon=True)
     poll_thread.start()
 
     try:
@@ -496,7 +501,7 @@ def repl():
             else:
                 cmd_task_run(raw)
     finally:
-        _approval_running = False
+        _interaction_running = False
 
 
 if __name__ == "__main__":
