@@ -73,7 +73,8 @@ class Orchestrator:
 
         try:
             from langchain.chat_models import init_chat_model
-            llm = init_chat_model("openai:gpt-4o-mini")
+            from app.config import config
+            llm = init_chat_model(config.default_model)
             prompt = ORCHESTRATOR_PROMPT.format(agent_list=agent_list)
             full = f"{prompt}\n\nTask: {content}"
             response = await llm.ainvoke(full)

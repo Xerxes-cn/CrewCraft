@@ -15,6 +15,7 @@ from websockets.asyncio.server import ServerConnection
 
 from app.config import config
 from .agent_manager import agent_manager as _am
+from .supervisor import Supervisor
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class WSManager:
         self._pending_tasks: dict[str, asyncio.Future] = {}
         self._last_beat: dict[str, float] = {}
         self._server = None
+        self._supervisor = Supervisor()
         # 协作会话跟踪 {session_id: {round, chain, started_at, last_activity, seen_contents}}
         self._collab_sessions: dict[str, dict] = {}
 
@@ -152,7 +154,7 @@ class WSManager:
             return
 
         # 监督检查
-        check = self._check_collab(sid, from_agent, to_agent, content)
+        check = await self._supervise(sid, from_agent, to_agent, content)
         if check:
             await self._connections[from_agent].send(json.dumps(check))
             return
@@ -188,16 +190,21 @@ class WSManager:
 
     # ── 协作监督 ─────────────────────────────────────────────────────
 
-    def _check_collab(self, sid: str, from_agent: str, to_agent: str, content: str) -> dict | None:
-        """检查协作是否越界。返回 None 表示放行，返回 dict 表示拦截。"""
-        from app.config import config
+    async def _supervise(self, sid: str, from_agent: str, to_agent: str, content: str) -> dict | None:
+        """监督协作消息。返回 None 表示放行，返回 dict 表示拦截/警告。
 
+        支持三种模式（通过 CREWCRAFT_COLLAB_SUPERVISOR_MODE 配置）：
+        - llm: 每条消息都调 LLM 判断
+        - hybrid: 硬规则先拦截明显越界的，通过的交 LLM 做语义判断
+        - sampling: 硬规则始终生效，接近限制时（>80%）额外启用 LLM
+        """
         if not sid:
             sid = str(uuid.uuid4())
 
         now = loop_time()
         if sid not in self._collab_sessions:
             self._collab_sessions[sid] = {
+                "session_id": sid,
                 "round": 0, "chain": [from_agent], "started_at": now,
                 "last_activity": now, "seen_contents": set(),
             }
@@ -208,28 +215,53 @@ class WSManager:
         if to_agent not in sess["chain"]:
             sess["chain"].append(to_agent)
 
-        # 超时
+        mode = config.collab_supervisor_mode
+
+        # ── 硬规则检查 ──────────────────────────────────────────────
+
+        if mode != "llm":
+            rule = self._check_hard_rules(sess, now, from_agent, to_agent, content)
+            if rule:
+                return rule
+
+        # ── LLM 判断 ─────────────────────────────────────────────────
+
+        if mode != "llm" and mode != "sampling":
+            return None  # hybrid 模式：硬规则通过 = 放行
+
+        if mode == "sampling" and not self._near_limit(sess, now):
+            return None  # sampling 模式：未接近限制时跳过 LLM
+
+        return await self._supervisor.check(sess, from_agent, to_agent, content)
+
+    def _check_hard_rules(self, sess: dict, now: float, from_agent: str, to_agent: str, content: str) -> dict | None:
+        """硬规则检查。返回 dict 表示拦截，None 表示通过。"""
+
         if now - sess["started_at"] > config.collab_timeout:
             return {"type": "supervisor", "action": "halt",
-                    "reason": f"协作超时 ({config.collab_timeout}s)", "session_id": sid}
+                    "reason": f"协作超时 ({config.collab_timeout}s)", "session_id": sess.get("session_id", "")}
 
-        # 轮次上限
         if sess["round"] > config.collab_max_rounds:
             return {"type": "supervisor", "action": "halt",
-                    "reason": f"达到最大轮次 ({config.collab_max_rounds})", "session_id": sid}
+                    "reason": f"达到最大轮次 ({config.collab_max_rounds})", "session_id": sess.get("session_id", "")}
 
-        # 深度上限
         if len(sess["chain"]) > config.collab_max_depth:
             return {"type": "supervisor", "action": "halt",
-                    "reason": f"链条过深 ({len(sess['chain'])} > {config.collab_max_depth})", "session_id": sid}
+                    "reason": f"链条过深 ({len(sess['chain'])} > {config.collab_max_depth})", "session_id": sess.get("session_id", "")}
 
-        # 重复检测
         content_hash = hash(content)
         if content_hash in sess["seen_contents"]:
             logger.warning(f"协作重复消息: {from_agent} → {to_agent}")
         sess["seen_contents"].add(content_hash)
 
         return None
+
+    def _near_limit(self, sess: dict, now: float) -> bool:
+        """判断是否接近协作限制（sampling 模式下使用）。"""
+        pct_time = (now - sess["started_at"]) / config.collab_timeout if config.collab_timeout else 0
+        pct_round = sess["round"] / config.collab_max_rounds if config.collab_max_rounds else 0
+        pct_depth = len(sess["chain"]) / config.collab_max_depth if config.collab_max_depth else 0
+        return max(pct_time, pct_round, pct_depth) > 0.8
 
     def _unregister(self, name: str):
         """清理 Agent 连接。"""

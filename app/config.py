@@ -41,6 +41,10 @@ class Config:
     collab_max_rounds: int = 10
     collab_max_depth: int = 3
     collab_timeout: int = 60
+    collab_supervisor_mode: str = "hybrid"  # llm | hybrid | sampling
+
+    # LLM
+    default_model: str = "deepseek:deepseek-chat"
 
     # 日志
     log_level: str = "INFO"
@@ -79,6 +83,8 @@ class Config:
         self.collab_max_rounds = int(get("CREWCRAFT_COLLAB_MAX_ROUNDS", "10"))
         self.collab_max_depth = int(get("CREWCRAFT_COLLAB_MAX_DEPTH", "3"))
         self.collab_timeout = int(get("CREWCRAFT_COLLAB_TIMEOUT", "60"))
+        self.collab_supervisor_mode = get("CREWCRAFT_COLLAB_SUPERVISOR_MODE", "hybrid")
+        self.default_model = get("CREWCRAFT_DEFAULT_MODEL", "deepseek:deepseek-chat")
         self.log_level = get("CREWCRAFT_LOG_LEVEL", "INFO")
 
     @property
