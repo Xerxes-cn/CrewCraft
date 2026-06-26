@@ -140,6 +140,34 @@ class TestHeartbeatKick:
         assert "agent-1" not in wsm._connections
         assert "agent-1" not in wsm._last_beat
 
+    async def test_run_heartbeat_restarts_on_unexpected_error(self, wsm):
+        """_run_heartbeat 在 heartbeat_loop 意外崩溃后自动重启，不会丢失心跳监控。"""
+        call_count = 0
+
+        async def flaky_loop(name, ws):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("simulated crash")
+            # 第二次成功，移除连接以退出 while 循环
+            wsm._connections.pop(name, None)
+            return
+
+        # 替换 _heartbeat_loop 为 flaky
+        wsm._heartbeat_loop = flaky_loop
+        wsm._connections["agent-1"] = MagicMock()
+
+        task = asyncio.create_task(wsm._run_heartbeat("agent-1", MagicMock()))
+        await asyncio.sleep(1.2)  # 等待崩溃 + asyncio.sleep(1) 重启延迟 + 第二次运行
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        assert call_count == 2  # 第一次崩溃，第二次被重启
+
     async def test_kick_only_exceeded_agent(self, wsm):
         """只有超过限制的 agent 被踢，其他不受影响。"""
         # 模拟 agent-1 被踢下线，agent-2 应保持连接

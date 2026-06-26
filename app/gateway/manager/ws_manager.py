@@ -89,9 +89,9 @@ class WSManager:
             self._last_beat[agent_name] = loop_time()
             _am.set_online(agent_name, True)
 
-            # 启动心跳
+            # 启动心跳（自动恢复）
             self._heartbeats[agent_name] = asyncio.create_task(
-                self._heartbeat_loop(agent_name, ws)
+                self._run_heartbeat(agent_name, ws)
             )
 
             # 监听来自 Agent 的消息
@@ -243,6 +243,20 @@ class WSManager:
             hb.cancel()
 
     # ── 心跳 ────────────────────────────────────────────────────────
+
+    async def _run_heartbeat(self, name: str, ws: ServerConnection):
+        """心跳包装器 — 意外异常时自动重启，直到正常退出或被取消。"""
+        while name in self._connections:
+            try:
+                await self._heartbeat_loop(name, ws)
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                if name not in self._connections:
+                    return
+                logger.exception(f"Agent {name} heartbeat crashed, restarting...")
+                await asyncio.sleep(1)  # 避免死循环
+        # 如果走到这里说明 heartbeat_loop 正常 return 了（踢下线或断连）
 
     async def _heartbeat_loop(self, name: str, ws: ServerConnection):
         """发送定期 ping 并检测死连接。连续丢失 3 次心跳则踢下线。"""
