@@ -80,27 +80,6 @@ async def get_agent(name: str):
     return _agent_to_response(config)
 
 
-class PromptRegenerate(BaseModel):
-    description: str
-
-
-@router.post("/{name}/generate-prompt")
-async def regenerate_prompt(name: str, body: PromptRegenerate):
-    """根据新描述重新生成系统提示词。"""
-    config = agent_manager.load_config(name)
-    if not config:
-        raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
-
-    prompt = agent_manager.generate_prompt(name, body.description, config.model)
-
-    # 更新配置中的描述
-    config.description = body.description
-    agent_manager.save_config(config)
-
-    logger.info(f"Regenerated prompt for '{name}' ({len(prompt)} chars)")
-    return {"name": name, "description": body.description, "prompt": prompt}
-
-
 @router.delete("/{name}")
 async def delete_agent(name: str):
     """删除 Agent 及其配置。"""
