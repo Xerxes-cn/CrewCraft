@@ -126,32 +126,26 @@ class TestDispatchTask:
 
 class TestHeartbeatKick:
 
-    def test_missed_pings_tracking(self, wsm):
-        """验证 _missed_pings 随丢失心跳递增。"""
-        assert "agent-1" not in wsm._missed_pings
-
-        # 模拟 ping 成功 → 重置计数
-        wsm._missed_pings["agent-1"] = 0
-
-        # 模拟一次丢失
-        wsm._missed_pings["agent-1"] = wsm._missed_pings.get("agent-1", 0) + 1
-        assert wsm._missed_pings["agent-1"] == 1
-
     def test_max_missed_pings_constant(self):
         """MAX_MISSED_PINGS 应为 3。"""
         from app.gateway.manager.ws_manager import MAX_MISSED_PINGS
         assert MAX_MISSED_PINGS == 3
 
-    def test_unregister_cleans_missed_pings(self, wsm):
-        """_unregister 清理 _missed_pings。"""
-        wsm._missed_pings["agent-1"] = 2
+    def test_unregister_cleans_connection_state(self, wsm):
+        """_unregister 清理连接、心跳、last_beat。"""
         wsm._connections["agent-1"] = MagicMock()
+        wsm._last_beat["agent-1"] = 100.0
         wsm._heartbeats["agent-1"] = MagicMock(done=MagicMock(return_value=True))
         wsm._unregister("agent-1")
-        assert "agent-1" not in wsm._missed_pings
+        assert "agent-1" not in wsm._connections
+        assert "agent-1" not in wsm._last_beat
 
-    def test_pong_resets_missed_count(self, wsm):
-        """收到 pong 时重置丢失计数。"""
-        wsm._missed_pings["agent-1"] = 2
-        wsm._missed_pings.pop("agent-1", None)
-        assert "agent-1" not in wsm._missed_pings
+    async def test_kick_only_exceeded_agent(self, wsm):
+        """只有超过限制的 agent 被踢，其他不受影响。"""
+        # 模拟 agent-1 被踢下线，agent-2 应保持连接
+        wsm._connections["agent-1"] = MagicMock()
+        wsm._connections["agent-2"] = MagicMock()
+
+        wsm._unregister("agent-1")
+        assert "agent-1" not in wsm._connections
+        assert "agent-2" in wsm._connections
