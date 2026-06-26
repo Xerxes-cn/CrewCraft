@@ -225,3 +225,38 @@ class TestOnlineState:
         """无 Agent 时 shutdown 不抛异常。"""
         import asyncio
         asyncio.run(agent_manager.shutdown_all())
+
+
+# ── create_agent 统一入口 ──────────────────────────────────────────────
+
+
+class TestCreateAgent:
+
+    def test_create_agent_saves_config(self, agent_manager):
+        """create_agent 保存配置到文件。"""
+        cfg = agent_manager.create_agent("dev", "gpt-4o", "Developer")
+        assert cfg.name == "dev"
+        assert agent_manager.load_config("dev") is not None
+
+    def test_create_agent_generates_prompt(self, agent_manager):
+        """有 description 时自动生成 prompt.md。"""
+        agent_manager.create_agent("dev", "gpt-4o", "Python developer")
+        prompt_path = agent_manager.agents_dir / "dev" / "prompt.md"
+        assert prompt_path.exists()
+
+    def test_create_agent_no_description_skips_prompt(self, agent_manager):
+        """无 description 时不生成 prompt。"""
+        agent_manager.create_agent("dev", "gpt-4o")
+        prompt_path = agent_manager.agents_dir / "dev" / "prompt.md"
+        assert not prompt_path.exists()
+
+    def test_generate_prompt_standalone(self, agent_manager):
+        """generate_prompt 可通过 Channel 等非 REST 路径调用。"""
+        from unittest.mock import patch
+
+        agent_manager.save_config(AgentConfig(name="dev", model="gpt-4o"))
+        with patch("app.agent.prompt_generator.generate_prompt",
+                   return_value="You are a helpful developer."), \
+             patch("app.agent.prompt_generator.save_prompt"):
+            prompt = agent_manager.generate_prompt("dev", "Python developer", "gpt-4o")
+        assert prompt == "You are a helpful developer."

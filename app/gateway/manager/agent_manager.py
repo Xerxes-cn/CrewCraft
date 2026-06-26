@@ -101,6 +101,39 @@ class AgentManager:
         self._config_path(config.name, create=True).write_text(
             json.dumps(config.to_dict(), indent=2, ensure_ascii=False))
 
+    def create_agent(self, name: str, model: str, description: str = "",
+                     provider: str = "", idle_timeout: int = 300) -> AgentConfig:
+        """创建 Agent 配置并自动生成 system prompt。
+
+        统一的创建入口 — REST API 和 Channel 都通过此方法创建 Agent。
+        """
+        from datetime import datetime, timezone
+
+        port = self.next_port()
+        cfg = AgentConfig(
+            name=name, model=model, description=description,
+            provider=provider, port=port, idle_timeout=idle_timeout,
+            created_at=datetime.now(timezone.utc).isoformat(),
+        )
+        self.save_config(cfg)
+
+        if description:
+            self.generate_prompt(name, description, model)
+
+        logger.info(f"Created agent '{name}' (port {port})")
+        return cfg
+
+    def generate_prompt(self, name: str, description: str, model: str = "") -> str:
+        """为 Agent 生成 system prompt（REST API 和 Channel 均可调用）。"""
+        from app.agent.prompt_generator import generate_prompt, save_prompt
+
+        if not model:
+            model = config.default_model
+        prompt = generate_prompt(description, model)
+        save_prompt(name, prompt, self.data_dir)
+        logger.info(f"Generated system prompt for '{name}' ({len(prompt)} chars)")
+        return prompt
+
     def delete_config(self, name: str) -> bool:
         """软删除：将配置移到 data/agents/deleted/{name}_{timestamp}_{unique}/ 目录。
 

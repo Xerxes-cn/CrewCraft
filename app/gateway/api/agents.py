@@ -2,7 +2,6 @@
 
 import json
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -54,32 +53,15 @@ def _agent_to_response(config: AgentConfig) -> AgentResponse:
 
 @router.post("", status_code=201)
 async def create_agent(body: AgentCreate):
-    """创建新的 Agent 配置。
-
-    使用 LLM 根据描述自动生成 system_prompt。
-    将提示词保存到 data/agents/{name}.prompt.md 供用户自定义。
-    """
+    """创建新的 Agent 配置（自动生成 system prompt）。"""
     if agent_manager.load_config(body.name):
         raise HTTPException(status_code=409, detail=f"Agent '{body.name}' already exists")
 
-    port = agent_manager.next_port()
-    agent_config = AgentConfig(
-        name=body.name, model=body.model,
-        description=body.description,
-        provider=body.provider,
-        port=port, idle_timeout=body.idle_timeout,
-        created_at=datetime.now(timezone.utc).isoformat(),
+    cfg = agent_manager.create_agent(
+        name=body.name, model=body.model, description=body.description,
+        provider=body.provider, idle_timeout=body.idle_timeout,
     )
-    agent_manager.save_config(agent_config)
-
-    if body.description:
-        from app.agent.prompt_generator import generate_prompt, save_prompt
-        prompt = generate_prompt(body.description, body.model)
-        save_prompt(body.name, prompt)
-        logger.info(f"Generated system prompt for '{body.name}' ({len(prompt)} chars)")
-
-    logger.info(f"Created agent '{body.name}' (port {port})")
-    return _agent_to_response(agent_config)
+    return _agent_to_response(cfg)
 
 
 @router.get("")
@@ -109,9 +91,7 @@ async def regenerate_prompt(name: str, body: PromptRegenerate):
     if not config:
         raise HTTPException(status_code=404, detail=f"Agent '{name}' not found")
 
-    from app.agent.prompt_generator import generate_prompt, save_prompt
-    prompt = generate_prompt(body.description, config.model)
-    save_prompt(name, prompt)
+    prompt = agent_manager.generate_prompt(name, body.description, config.model)
 
     # 更新配置中的描述
     config.description = body.description
