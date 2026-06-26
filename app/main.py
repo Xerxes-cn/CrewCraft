@@ -32,7 +32,7 @@ def main(
 
 
 def register_commands():
-    """注册所有子命令（保留以保持向后兼容）。"""
+    """注册所有 CLI 子命令。"""
     from .cli.main import agent_app, task_app, session_app, gateway_app, tool_app
 
     cli.add_typer(agent_app, name="agent", help="管理智能体")

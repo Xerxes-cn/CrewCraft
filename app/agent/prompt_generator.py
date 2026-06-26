@@ -3,7 +3,7 @@
 使用 LLM 根据 Agent 应执行的任务的简短描述生成全面的系统提示词。
 结果保存到 data/agents/{name}.prompt.md 供用户审查和自定义。
 """
-
+import asyncio
 import logging
 from pathlib import Path
 
@@ -26,9 +26,6 @@ Write ONLY the system prompt, no explanations or meta-commentary."""
 
 
 def generate_prompt(description: str, model: str = "") -> str:
-    if not model:
-        from app.config import config
-        model = config.default_model
     """使用 LLM 根据描述生成系统提示词。
 
     参数：
@@ -38,7 +35,9 @@ def generate_prompt(description: str, model: str = "") -> str:
     返回：
         生成的系统提示词字符串。
     """
-    import asyncio
+    if not model:
+        from app.config import config
+        model = config.default_model
 
     try:
         return asyncio.run(_generate_async(description, model))
@@ -93,17 +92,11 @@ def save_prompt(agent_name: str, prompt: str, data_dir: Path = None):
 
 
 def load_prompt(agent_name: str, data_dir: Path = None) -> str | None:
-    """从 data/agents/{name}/prompt.md 加载提示词。找不到则返回 None。
-    也兼容旧格式 data/agents/{name}.prompt.md。"""
+    """从 data/agents/{name}/prompt.md 加载提示词。找不到则返回 None。"""
     if data_dir is None:
         from app.config import config
         data_dir = config.data_dir
-    # 新格式
-    new_path = data_dir / "agents" / agent_name / "prompt.md"
-    if new_path.exists():
-        return new_path.read_text(encoding="utf-8")
-    # 旧格式兼容
-    old_path = data_dir / "agents" / f"{agent_name}.prompt.md"
-    if old_path.exists():
-        return old_path.read_text(encoding="utf-8")
+    path = data_dir / "agents" / agent_name / "prompt.md"
+    if path.exists():
+        return path.read_text(encoding="utf-8")
     return None

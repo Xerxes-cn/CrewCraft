@@ -102,7 +102,7 @@ class CLILoop:
                 self._show_help()
                 continue
             if raw.startswith("/agent"):
-                self._handle_legacy(raw)
+                self._handle_agent_command(raw)
                 continue
 
             # 发消息到总线
@@ -113,7 +113,7 @@ class CLILoop:
 
     def _show_help(self):
         console.print("""
-  Slash 命令（旧版兼容）:
+  Slash 命令:
     /agent create <name> --model <m> --desc <d>
     /agent list
     /agent inspect <name>
@@ -122,8 +122,8 @@ class CLILoop:
     /exit
 """)
 
-    def _handle_legacy(self, raw: str):
-        """代理旧的 /agent 等命令到 REST API。"""
+    def _handle_agent_command(self, raw: str):
+        """将 /agent 命令转发到 CLI dispatcher。"""
         from app.cli.repl import _dispatch
         _dispatch(raw[1:])
 

@@ -5,10 +5,12 @@
 - 按需启动 Agent（子进程/Docker/CLI 外部工具）
 - 端口分配
 """
-
 import json
 import logging
+import shutil
+import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -59,7 +61,7 @@ class AgentConfig:
     def from_dict(cls, data: dict) -> "AgentConfig":
         return cls(
             name=data["name"], model=data["model"],
-            description=data.get("description", data.get("system_prompt", "")),
+            description=data.get("description", ""),
             provider=data.get("provider", ""),
             port=data.get("port", 0), idle_timeout=data.get("idle_timeout", 300),
             created_at=data.get("created_at", ""),
@@ -107,9 +109,6 @@ class AgentManager:
         d = self.agents_dir / name
         if not d.exists():
             return False
-        import shutil
-        import uuid
-        from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).strftime(config.timestamp_format)
         uid = uuid.uuid4().hex[:6]
         deleted_dir = self.agents_dir / "deleted" / f"{name}_{ts}_{uid}"

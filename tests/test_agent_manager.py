@@ -183,10 +183,10 @@ class TestAgentConfigModel:
         with pytest.raises(KeyError):
             AgentConfig.from_dict({"name": "x"})
 
-    def test_from_dict_backcompat_system_prompt(self):
-        """from_dict 用 system_prompt key 作为 description 的 fallback。"""
-        cfg = AgentConfig.from_dict({"name": "x", "model": "gpt", "system_prompt": "old prompt"})
-        assert cfg.description == "old prompt"
+    def test_from_dict_ignores_unknown_keys(self):
+        """from_dict 忽略未知 key（如旧 system_prompt）。"""
+        cfg = AgentConfig.from_dict({"name": "x", "model": "gpt", "system_prompt": "ignored"})
+        assert cfg.description == ""  # system_prompt 不再被读取
 
     def test_to_dict_from_dict_roundtrip(self):
         original = AgentConfig(name="r", model="m", description="d",
