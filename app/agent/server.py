@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 AGENT_NAME = os.getenv("CREWCRAFT_AGENT_NAME", "default")
 AGENT_PORT = int(os.getenv("CREWCRAFT_AGENT_PORT", "9001"))
 
-TOOL_RESULT_TRUNCATE = 100  # sessions.json 中保留的字符数
+TOOL_RESULT_TRUNCATE = 100  # 运行时从 config.tool_result_truncate 读取
 
 SESSION_DIR = config.data_dir / "sessions" / AGENT_NAME
 

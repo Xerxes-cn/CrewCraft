@@ -19,9 +19,6 @@ from .supervisor import Supervisor
 
 logger = logging.getLogger(__name__)
 
-TASK_TIMEOUT = 300  # 秒
-
-
 class WSManager:
     """管理来自 Agent 进程的 WebSocket 连接。"""
 

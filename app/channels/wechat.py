@@ -19,8 +19,8 @@ from . import register_channel_type
 logger = logging.getLogger(__name__)
 
 ILINK_BASE = "https://ilinkai.weixin.qq.com"
-POLL_TIMEOUT = 35
-MAX_MESSAGE_LEN = 4000
+POLL_TIMEOUT = 35       # 运行时从 config.wechat_poll_timeout 读取
+MAX_MESSAGE_LEN = 4000   # 运行时从 config.wechat_max_message_len 读取
 
 
 class WeChatChannel(BaseChannel):

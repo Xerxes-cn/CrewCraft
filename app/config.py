@@ -37,6 +37,12 @@ class Config:
     agent_idle_timeout: int = 300
     agent_heartbeat_interval: int = 15
 
+    # 心跳
+    max_missed_pings: int = 3
+
+    # 任务
+    task_timeout: int = 300
+
     # 协作监督
     collab_max_rounds: int = 10
     collab_max_depth: int = 3
@@ -45,6 +51,16 @@ class Config:
 
     # LLM
     default_model: str = "deepseek:deepseek-chat"
+
+    # 微信 Channel
+    wechat_poll_timeout: int = 35
+    wechat_max_message_len: int = 4000
+
+    # 工具
+    tool_result_truncate: int = 100
+
+    # 时间格式
+    timestamp_format: str = "%Y%m%dT%H%M%S"
 
     # 日志
     log_level: str = "INFO"
@@ -80,11 +96,17 @@ class Config:
         self.agent_port_start = int(get("CREWCRAFT_AGENT_PORT_START", "9001"))
         self.agent_idle_timeout = int(get("CREWCRAFT_AGENT_IDLE_TIMEOUT", "300"))
         self.agent_heartbeat_interval = int(get("CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "15"))
+        self.max_missed_pings = int(get("CREWCRAFT_MAX_MISSED_PINGS", "3"))
+        self.task_timeout = int(get("CREWCRAFT_TASK_TIMEOUT", "300"))
         self.collab_max_rounds = int(get("CREWCRAFT_COLLAB_MAX_ROUNDS", "10"))
         self.collab_max_depth = int(get("CREWCRAFT_COLLAB_MAX_DEPTH", "3"))
         self.collab_timeout = int(get("CREWCRAFT_COLLAB_TIMEOUT", "60"))
         self.collab_supervisor_mode = get("CREWCRAFT_COLLAB_SUPERVISOR_MODE", "hybrid")
         self.default_model = get("CREWCRAFT_DEFAULT_MODEL", "deepseek:deepseek-chat")
+        self.wechat_poll_timeout = int(get("CREWCRAFT_WECHAT_POLL_TIMEOUT", "35"))
+        self.wechat_max_message_len = int(get("CREWCRAFT_WECHAT_MAX_MESSAGE_LEN", "4000"))
+        self.tool_result_truncate = int(get("CREWCRAFT_TOOL_RESULT_TRUNCATE", "100"))
+        self.timestamp_format = get("CREWCRAFT_TIMESTAMP_FORMAT", "%Y%m%dT%H%M%S")
         self.log_level = get("CREWCRAFT_LOG_LEVEL", "INFO")
 
     @property

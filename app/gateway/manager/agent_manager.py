@@ -110,7 +110,7 @@ class AgentManager:
         import shutil
         import uuid
         from datetime import datetime, timezone
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        ts = datetime.now(timezone.utc).strftime(config.timestamp_format)
         uid = uuid.uuid4().hex[:6]
         deleted_dir = self.agents_dir / "deleted" / f"{name}_{ts}_{uid}"
         deleted_dir.parent.mkdir(parents=True, exist_ok=True)

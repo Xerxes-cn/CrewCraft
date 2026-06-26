@@ -131,9 +131,12 @@ class TestDefaults:
             "CREWCRAFT_DATA_DIR", "CREWCRAFT_GATEWAY_HOST", "CREWCRAFT_GATEWAY_PORT",
             "CREWCRAFT_WS_HOST", "CREWCRAFT_WS_PORT", "CREWCRAFT_AGENT_DEPLOY_MODE",
             "CREWCRAFT_AGENT_PORT_START", "CREWCRAFT_AGENT_IDLE_TIMEOUT",
-            "CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "CREWCRAFT_COLLAB_MAX_ROUNDS",
+            "CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "CREWCRAFT_MAX_MISSED_PINGS",
+            "CREWCRAFT_TASK_TIMEOUT", "CREWCRAFT_COLLAB_MAX_ROUNDS",
             "CREWCRAFT_COLLAB_MAX_DEPTH", "CREWCRAFT_COLLAB_TIMEOUT",
             "CREWCRAFT_COLLAB_SUPERVISOR_MODE", "CREWCRAFT_DEFAULT_MODEL",
+            "CREWCRAFT_WECHAT_POLL_TIMEOUT", "CREWCRAFT_WECHAT_MAX_MESSAGE_LEN",
+            "CREWCRAFT_TOOL_RESULT_TRUNCATE", "CREWCRAFT_TIMESTAMP_FORMAT",
             "CREWCRAFT_LOG_LEVEL",
         ]
         for key in all_keys:
@@ -183,6 +186,30 @@ class TestDefaults:
     def test_default_supervisor_mode(self, monkeypatch):
         c = self._clean_config(monkeypatch)
         assert c.collab_supervisor_mode == "hybrid"
+
+    def test_default_max_missed_pings(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.max_missed_pings == 3
+
+    def test_default_task_timeout(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.task_timeout == 300
+
+    def test_default_timestamp_format(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.timestamp_format == "%Y%m%dT%H%M%S"
+
+    def test_default_wechat_poll_timeout(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.wechat_poll_timeout == 35
+
+    def test_default_wechat_max_message_len(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.wechat_max_message_len == 4000
+
+    def test_default_tool_result_truncate(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.tool_result_truncate == 100
 
 
 # ── 边界与错误处理 ─────────────────────────────────────────────────────
