@@ -3,7 +3,7 @@
 import json
 import pytest
 
-from app.gateway.manager.agent_manager import AgentConfig, AgentManager
+from app.gateway.manager.agent_manager import AgentConfig
 
 
 # ── 基本 CRUD ───────────────────────────────────────────────────────────

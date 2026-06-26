@@ -1,6 +1,5 @@
 """Orchestrator 编排器测试 — mock LLM 调用，验证规划与分派逻辑。"""
 
-import asyncio
 import json
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -206,7 +205,7 @@ class TestHandleTask:
 
         with patch("langchain.chat_models.init_chat_model") as mock_llm:
             mock_llm.return_value.ainvoke = AsyncMock(return_value=mock_response)
-            result = await orch.handle_task("code")
+            _ = await orch.handle_task("code")
 
         mock_am.start_agent.assert_awaited()  # 确保被调用
 
@@ -279,7 +278,7 @@ class TestHandleTask:
 class TestSingleton:
 
     def test_get_orchestrator_creates_and_reuses(self, mock_am, mock_ws):
-        from app.gateway.orchestrator import get_orchestrator, _orchestrator
+        from app.gateway.orchestrator import get_orchestrator
 
         # 重置单例
         import app.gateway.orchestrator as orch_mod
@@ -290,7 +289,7 @@ class TestSingleton:
         assert o1 is o2
 
     def test_get_orchestrator_none_when_not_initialized(self):
-        from app.gateway.orchestrator import get_orchestrator, _orchestrator
+        from app.gateway.orchestrator import get_orchestrator
 
         import app.gateway.orchestrator as orch_mod
         orch_mod._orchestrator = None

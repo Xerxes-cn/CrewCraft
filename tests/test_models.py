@@ -1,7 +1,6 @@
 """数据模型测试 — 覆盖 app/models.py 所有 dataclass 的构造、序列化、校验。"""
 
 import json
-import pytest
 
 from app.models import (
     InboundMsg, OutboundMsg, TaskRequest, TaskResult,

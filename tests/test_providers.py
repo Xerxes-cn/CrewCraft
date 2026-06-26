@@ -3,7 +3,6 @@
 不启动真实进程或容器，只测试 API 行为。
 """
 
-import asyncio
 import pytest
 
 from app.agent.providers import get_provider, list_providers

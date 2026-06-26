@@ -3,9 +3,6 @@
 不调用 start()，不连接真实 IM 平台。
 """
 
-import pytest
-
-
 class TestWeChatChannel:
 
     def test_instantiation(self):
@@ -25,7 +22,7 @@ class TestDingTalkChannel:
 
     def test_instantiation(self):
         """即使 SDK 不可用，类也应可实例化。"""
-        from app.channels.dingtalk import DingTalkChannel, DINGTALK_AVAILABLE
+        from app.channels.dingtalk import DingTalkChannel
         ch = DingTalkChannel({"name": "test"})
         assert ch.name == "dingtalk"
         assert ch.display_name == "DingTalk"

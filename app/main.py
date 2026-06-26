@@ -6,8 +6,6 @@
     crewcraft -V               # 显示版本号
 """
 
-import sys
-
 import typer
 
 from . import __version__

@@ -1,7 +1,5 @@
 """CLI Channel — 终端交互作为一等 Channel。"""
 
-import asyncio
-import sys
 import threading
 import time
 
@@ -11,7 +9,7 @@ from rich.panel import Panel
 
 from app.config import config as app_config
 from .base import BaseChannel
-from .bus import OutboundMsg, msg_manager
+from .bus import OutboundMsg
 from . import register_channel_type
 
 console = Console()
@@ -22,7 +20,6 @@ _approval_running = False
 
 def _poll_approvals():
     """后台线程：轮询审批队列。"""
-    global _approval_running
     last_count = 0
     while _approval_running:
         try:

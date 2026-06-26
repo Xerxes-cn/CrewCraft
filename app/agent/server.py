@@ -367,7 +367,6 @@ async def agent_loop():
                 elif msg_type == "task":
                     _current_task_id = msg.get("task_id", "")
                     _current_session_id = msg.get("session_id", str(uuid.uuid4()))
-                    _current_ws = ws
                     session_id = _current_session_id
                     content = msg.get("content", "")
 
