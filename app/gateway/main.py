@@ -17,7 +17,6 @@ from .api.agents import router as agents_router
 from .api.tasks import router as tasks_router
 from .api.tools import router as tools_router
 from .api.approvals import router as interactions_router
-from .api.approvals import approvals_router
 from .manager.agent_manager import agent_manager
 from .manager.ws_manager import ws_manager
 
@@ -60,7 +59,6 @@ app.include_router(agents_router)
 app.include_router(tasks_router)
 app.include_router(tools_router)
 app.include_router(interactions_router)
-app.include_router(approvals_router)  # 向后兼容 /api/approvals
 
 
 @app.get("/api/health")
