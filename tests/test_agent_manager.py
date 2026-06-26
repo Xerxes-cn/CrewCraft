@@ -1,6 +1,5 @@
 """AgentManager CRUD 与配置持久化测试。"""
 
-import json
 import pytest
 
 from app.gateway.manager.agent_manager import AgentConfig
@@ -83,13 +82,6 @@ class TestListAndDelete:
         names = {c.name for c in configs}
         assert "corrupt" not in names
 
-    def test_delete_old_format_file(self, agent_manager):
-        """旧格式 data/agents/{name}.json 能被删除。"""
-        old_file = agent_manager.agents_dir / "old.json"
-        old_file.parent.mkdir(parents=True, exist_ok=True)
-        old_file.write_text(json.dumps({"name": "old", "model": "gpt"}))
-        assert agent_manager.delete_config("old") is True
-        assert not old_file.exists()
 
 
 # ── 端口分配 ────────────────────────────────────────────────────────────
@@ -125,33 +117,6 @@ class TestPortAllocation:
         assert len(seen) == 5
 
 
-# ── 迁移 ────────────────────────────────────────────────────────────────
-
-
-class TestMigration:
-
-    def test_migrate_old_format(self, agent_manager):
-        old = agent_manager.agents_dir / "old.json"
-        old.parent.mkdir(parents=True, exist_ok=True)
-        old.write_text(json.dumps({"name": "old", "model": "gpt", "description": "old"}))
-        loaded = agent_manager.load_config("old")
-        assert loaded is not None
-        assert loaded.name == "old"
-        # 迁移后新路径应存在
-        assert (agent_manager.agents_dir / "old" / "config.json").exists()
-        # 旧文件应已移走
-        assert not old.exists()
-
-    def test_migrate_skips_if_new_exists(self, agent_manager):
-        """新旧格式同时存在时，直接读新的。"""
-        old = agent_manager.agents_dir / "already.json"
-        old.write_text(json.dumps({"name": "already", "model": "old-model"}))
-        new_dir = agent_manager.agents_dir / "already"
-        new_dir.mkdir(parents=True)
-        (new_dir / "config.json").write_text(
-            json.dumps({"name": "already", "model": "new-model"}))
-        loaded = agent_manager.load_config("already")
-        assert loaded.model == "new-model"
 
 
 # ── AgentConfig 序列化 ──────────────────────────────────────────────────

@@ -88,25 +88,10 @@ class AgentManager:
     def _config_path(self, name: str, create: bool = False) -> Path:
         return self._config_dir(name, create=create) / "config.json"
 
-    def _migrate_old_config(self, name: str):
-        """迁移旧格式 data/agents/{name}.json → data/agents/{name}/config.json"""
-        old = self.agents_dir / f"{name}.json"
-        new = self._config_path(name, create=False)
-        if old.exists() and not new.exists():
-            self._config_dir(name, create=True)
-            old.rename(new)
-            logger.info(f"已迁移配置: {old} → {new}")
-            old_prompt = self.agents_dir / f"{name}.prompt.md"
-            if old_prompt.exists():
-                new_prompt = self._config_dir(name) / "prompt.md"
-                old_prompt.rename(new_prompt)
-
     def load_config(self, name: str) -> Optional[AgentConfig]:
         path = self._config_path(name)
         if not path.exists():
-            self._migrate_old_config(name)
-            if not path.exists():
-                return None
+            return None
         return AgentConfig.from_dict(json.loads(path.read_text()))
 
     def save_config(self, config: AgentConfig) -> None:
@@ -120,33 +105,19 @@ class AgentManager:
             import shutil
             shutil.rmtree(d)
             return True
-        # Also check old format
-        old = self.agents_dir / f"{name}.json"
-        if old.exists():
-            old.unlink()
-            return True
         return False
 
     def list_configs(self) -> list[AgentConfig]:
         configs = []
         for d in sorted(self.agents_dir.iterdir()):
-            if d.is_dir():
-                path = d / "config.json"
-                if path.exists():
-                    try:
-                        configs.append(AgentConfig.from_dict(json.loads(path.read_text())))
-                    except (json.JSONDecodeError, KeyError) as e:
-                        logger.warning(f"跳过无效配置 {path}: {e}")
-            elif d.suffix == ".json":
-                # 旧格式 — 尝试迁移
-                name = d.stem
-                self._migrate_old_config(name)
-                path = self._config_path(name)
-                if path.exists():
-                    try:
-                        configs.append(AgentConfig.from_dict(json.loads(path.read_text())))
-                    except (json.JSONDecodeError, KeyError) as e:
-                        logger.warning(f"跳过无效配置 {path}: {e}")
+            if not d.is_dir():
+                continue
+            path = d / "config.json"
+            if path.exists():
+                try:
+                    configs.append(AgentConfig.from_dict(json.loads(path.read_text())))
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.warning(f"跳过无效配置 {path}: {e}")
         return configs
 
     def next_port(self) -> int:
