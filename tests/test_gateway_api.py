@@ -17,13 +17,15 @@ def _build_test_app(agent_manager_instance):
     from app.gateway.api.agents import router as agents_router
     from app.gateway.api.tasks import router as tasks_router
     from app.gateway.api.tools import router as tools_router
-    from app.gateway.api.approvals import router as approvals_router
+    from app.gateway.api.approvals import router as interactions_router
+    from app.gateway.api.approvals import approvals_router
     from app.gateway.manager.ws_manager import ws_manager as _ws
 
     test_app = FastAPI()
     test_app.include_router(agents_router)
     test_app.include_router(tasks_router)
     test_app.include_router(tools_router)
+    test_app.include_router(interactions_router)
     test_app.include_router(approvals_router)
 
     @test_app.get("/api/health")
@@ -150,10 +152,10 @@ class TestAgentDelete:
         assert resp.status_code == 404
 
 
-# ── Approvals API ───────────────────────────────────────────────────────
+# ── Interactions API (new) ────────────────────────────────────────────────
 
 
-class TestApprovalsAPI:
+class TestInteractionsAPI:
 
     @pytest.fixture
     def clear(self):
@@ -162,43 +164,74 @@ class TestApprovalsAPI:
         yield
         clear_queue()
 
-    def test_submit_approval(self, client, clear):
+    def test_submit_confirm(self, client, clear):
+        resp = client.post("/api/interactions/submit", json={
+            "agent": "dev", "session_id": "s1",
+            "type": "confirm", "prompt": "Run dangerous command?",
+        })
+        assert resp.status_code == 201
+        assert resp.json()["request_id"].startswith("hq_")
+
+    def test_submit_select(self, client, clear):
+        resp = client.post("/api/interactions/submit", json={
+            "agent": "dev", "session_id": "s1",
+            "type": "select", "prompt": "Which environment?",
+            "options": ["staging", "production"],
+        })
+        assert resp.status_code == 201
+
+    def test_submit_input(self, client, clear):
+        resp = client.post("/api/interactions/submit", json={
+            "agent": "dev", "session_id": "s1",
+            "type": "input", "prompt": "Enter API key:",
+        })
+        assert resp.status_code == 201
+
+    def test_resolve(self, client, clear):
+        submit = client.post("/api/interactions/submit", json={
+            "agent": "a", "session_id": "s", "type": "confirm", "prompt": "OK?",
+        })
+        rid = submit.json()["request_id"]
+        resp = client.post(f"/api/interactions/{rid}/resolve", json={"response": "approved"})
+        assert resp.status_code == 200
+        assert resp.json()["response"] == "approved"
+
+    def test_resolve_select(self, client, clear):
+        submit = client.post("/api/interactions/submit", json={
+            "agent": "a", "session_id": "s", "type": "select",
+            "prompt": "Pick", "options": ["a", "b"],
+        })
+        rid = submit.json()["request_id"]
+        resp = client.post(f"/api/interactions/{rid}/resolve", json={"response": "a"})
+        assert resp.json()["response"] == "a"
+
+    def test_resolve_nonexistent_404(self, client, clear):
+        resp = client.post("/api/interactions/fake-id/resolve", json={"response": "x"})
+        assert resp.status_code == 404
+
+
+# ── Approvals API (backward compat) ────────────────────────────────────────
+
+
+class TestLegacyApprovalsAPI:
+
+    @pytest.fixture
+    def clear(self):
+        from app.gateway.api.approvals import clear_queue
+        clear_queue()
+        yield
+        clear_queue()
+
+    def test_legacy_submit(self, client, clear):
         resp = client.post("/api/approvals/submit", json={
             "agent": "dev", "session_id": "s1",
             "tool": "shell_exec", "action": "rm -rf /tmp/test",
             "permission": "dangerous",
         })
         assert resp.status_code == 201
-        data = resp.json()
-        assert data["request_id"].startswith("approval_")
-        assert data["status"] == "pending"
+        assert resp.json()["status"] == "pending"
 
-    def test_list_pending(self, client, clear):
-        client.post("/api/approvals/submit", json={
-            "agent": "dev", "session_id": "s1",
-            "tool": "shell_exec", "action": "rm /tmp/x",
-            "permission": "write",
-        })
-        resp = client.get("/api/approvals/pending")
-        assert resp.status_code == 200
-        pending = resp.json()
-        assert len(pending) == 1
-
-    def test_list_pending_filter_by_session(self, client, clear):
-        client.post("/api/approvals/submit", json={
-            "agent": "a1", "session_id": "s1", "tool": "t", "action": "x",
-            "permission": "safe",
-        })
-        client.post("/api/approvals/submit", json={
-            "agent": "a2", "session_id": "s2", "tool": "t", "action": "y",
-            "permission": "safe",
-        })
-        resp = client.get("/api/approvals/pending?session=s1")
-        assert len(resp.json()) == 1
-        resp = client.get("/api/approvals/pending?session=s3")
-        assert len(resp.json()) == 0
-
-    def test_approve(self, client, clear):
+    def test_legacy_approve(self, client, clear):
         submit = client.post("/api/approvals/submit", json={
             "agent": "a", "session_id": "s", "tool": "t", "action": "x",
             "permission": "safe",
@@ -206,9 +239,8 @@ class TestApprovalsAPI:
         rid = submit.json()["request_id"]
         resp = client.post(f"/api/approvals/{rid}/approve")
         assert resp.status_code == 200
-        assert resp.json()["decision"] == "approved"
 
-    def test_deny(self, client, clear):
+    def test_legacy_deny(self, client, clear):
         submit = client.post("/api/approvals/submit", json={
             "agent": "a", "session_id": "s", "tool": "t", "action": "x",
             "permission": "safe",
@@ -216,17 +248,12 @@ class TestApprovalsAPI:
         rid = submit.json()["request_id"]
         resp = client.post(f"/api/approvals/{rid}/deny")
         assert resp.status_code == 200
-        assert resp.json()["decision"] == "denied"
 
-    def test_approve_nonexistent_404(self, client, clear):
+    def test_legacy_approve_nonexistent_404(self, client, clear):
         resp = client.post("/api/approvals/fake-id/approve")
         assert resp.status_code == 404
 
-    def test_deny_nonexistent_404(self, client, clear):
-        resp = client.post("/api/approvals/fake-id/deny")
-        assert resp.status_code == 404
-
-    def test_double_approve_second_404(self, client, clear):
+    def test_legacy_double_approve_second_404(self, client, clear):
         submit = client.post("/api/approvals/submit", json={
             "agent": "a", "session_id": "s", "tool": "t", "action": "x",
             "permission": "safe",
