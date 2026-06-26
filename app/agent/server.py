@@ -138,7 +138,8 @@ async def run_task(session_id: str, content: str, ws, config: dict) -> str:
         ws: 与网关的 WebSocket 连接。
         config: 从网关接收的 Agent 配置（model, system_prompt, tools）。
     """
-    model = config.get("model", "openai:gpt-4o")
+    from app.config import config as app_config
+    model = config.get("model", app_config.default_model)
     system_prompt = config.get("system_prompt", "")
     tools_list = config.get("tools", [])
 

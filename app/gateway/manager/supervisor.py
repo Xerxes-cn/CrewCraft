@@ -70,7 +70,8 @@ class Supervisor:
 
         try:
             from langchain.chat_models import init_chat_model
-            llm = init_chat_model("openai:gpt-4o-mini")
+            from app.config import config as _config
+            llm = init_chat_model(_config.default_model)
             response = await llm.ainvoke(prompt)
             text = response.content if hasattr(response, "content") else str(response)
 

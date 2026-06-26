@@ -25,7 +25,10 @@ Description: {description}
 Write ONLY the system prompt, no explanations or meta-commentary."""
 
 
-def generate_prompt(description: str, model: str = "openai:gpt-4o") -> str:
+def generate_prompt(description: str, model: str = "") -> str:
+    if not model:
+        from app.config import config
+        model = config.default_model
     """使用 LLM 根据描述生成系统提示词。
 
     参数：

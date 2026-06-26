@@ -104,6 +104,14 @@ class TestAllFields:
         c = make_config(monkeypatch, {"CREWCRAFT_COLLAB_TIMEOUT": "90"})
         assert c.collab_timeout == 90
 
+    def test_default_model(self, monkeypatch):
+        c = make_config(monkeypatch, {"CREWCRAFT_DEFAULT_MODEL": "deepseek:deepseek-v3"})
+        assert c.default_model == "deepseek:deepseek-v3"
+
+    def test_collab_supervisor_mode(self, monkeypatch):
+        c = make_config(monkeypatch, {"CREWCRAFT_COLLAB_SUPERVISOR_MODE": "llm"})
+        assert c.collab_supervisor_mode == "llm"
+
     def test_log_level(self, monkeypatch):
         c = make_config(monkeypatch, {"CREWCRAFT_LOG_LEVEL": "WARNING"})
         assert c.log_level == "WARNING"
@@ -125,6 +133,7 @@ class TestDefaults:
             "CREWCRAFT_AGENT_PORT_START", "CREWCRAFT_AGENT_IDLE_TIMEOUT",
             "CREWCRAFT_AGENT_HEARTBEAT_INTERVAL", "CREWCRAFT_COLLAB_MAX_ROUNDS",
             "CREWCRAFT_COLLAB_MAX_DEPTH", "CREWCRAFT_COLLAB_TIMEOUT",
+            "CREWCRAFT_COLLAB_SUPERVISOR_MODE", "CREWCRAFT_DEFAULT_MODEL",
             "CREWCRAFT_LOG_LEVEL",
         ]
         for key in all_keys:
@@ -166,6 +175,14 @@ class TestDefaults:
     def test_default_heartbeat(self, monkeypatch):
         c = self._clean_config(monkeypatch)
         assert c.agent_heartbeat_interval == 15
+
+    def test_default_model(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.default_model == "deepseek:deepseek-chat"
+
+    def test_default_supervisor_mode(self, monkeypatch):
+        c = self._clean_config(monkeypatch)
+        assert c.collab_supervisor_mode == "hybrid"
 
 
 # ── 边界与错误处理 ─────────────────────────────────────────────────────
